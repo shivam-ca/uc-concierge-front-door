@@ -73,7 +73,7 @@ Stack: React 19, Vite 6, framer-motion 11, liquid-glass-react, lucide-react. The
    - **Confidence < 0.6:** show the top three choices as buttons. There is no automatic redirect.
    - **The agent has no URL (coming soon):** show the coming-soon landing inside the tab.
 4. If `window.open` returned `null` (the popup was blocked), the results card shows a prominent "Open <agent>" button instead.
-5. `buildAgentUrl` appends `q=<urlencoded query>&from=concierge` to the configured URL. It preserves any existing query string and hash, for example `/v7?q=…#assistant`. The request text is also copied to the clipboard as a fallback (best effort; failures are ignored).
+5. `buildAgentUrl` appends `q=<urlencoded query>&from=concierge` to the configured URL. It preserves any existing query string and hash, for example `/v7?q=…#log`. The request text is also copied to the clipboard as a fallback (best effort; failures are ignored).
 
 ## 5. Orchestrator API — `POST /api/route`
 
@@ -128,7 +128,7 @@ If `q` is missing, nothing changes.
 | Onboarding v4 | `web/app.js`, input `#q` in `#composer` | branch `feat/concierge-prefill` off `feat/simple-finder` in `onboarding-agent-demo`, pushed, not merged |
 | Tracker v7 | `web/v7/index.html`, Assistant input `#a-text` | branch `feat/concierge-prefill` off `feat/v7-langsmith` in `uc-concierge`, pushed, not merged |
 | Knowledge | `web/chat/index.html`, composer `#msgtext` (new chat) | patch in this repo: `agent-patches/knowledge-agent/` |
-| Owner | `web/stale-owners/index.html` | same patch; `q` fills the page's search/filter if one exists, otherwise it is shown as a "Request from UC Concierge" banner (the Owner agent is review-driven, with no chat) |
+| Owner | `web/stale-owners/index.html` | same patch; `q` fills the data-source/schema search box `#ci` and opens its suggestions. A "Request from UC Concierge" banner shows the full text (the Owner agent is review-driven, with no chat) |
 
 `agent-patches/knowledge-agent/` contains the changed files, a unified `.patch` against the 6 Nov `KnowledgeAgent.zip`, and a README with apply steps. A rebuilt `Downloads/KnowledgeAgent_prefill.zip` is produced for convenience; it is not committed.
 
