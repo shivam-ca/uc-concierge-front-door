@@ -30,14 +30,14 @@ describe('runSubmit', () => {
     const d = deps();
     const p = runSubmit('new catalog', d);
     d.resolveRoute({ decision });
-    await expect(p).resolves.toEqual({ decision, blocked: false });
+    await expect(p).resolves.toEqual({ decision, blocked: false, copied: false });
     expect(d.publish).toHaveBeenCalledWith('abc123', { query: 'new catalog', decision, urls: { onboarding: 'http://127.0.0.1:8784/' } });
   });
   it('reports a blocked popup but still routes', async () => {
     const d = deps({ openTab: vi.fn(() => ({ win: null, blocked: true })) });
     const p = runSubmit('q', d);
     d.resolveRoute({ decision });
-    await expect(p).resolves.toEqual({ decision, blocked: true });
+    await expect(p).resolves.toEqual({ decision, blocked: true, copied: false });
   });
   it('publishes the error to the handoff tab so it does not wait forever', async () => {
     const d = deps();
@@ -54,5 +54,31 @@ describe('agentUrls', () => {
       onboarding: 'http://127.0.0.1:8784/onboarding-agent', tracker: 'http://t/', knowledge: 'http://127.0.0.1:8765/chat',
       ownership: 'http://127.0.0.1:8766/stale-owners', access: null,
     });
+  });
+});
+
+describe('runSubmit clipboard and closed tab', () => {
+  it('copies the request synchronously before opening the tab, while the page still has focus', () => {
+    const d = deps();
+    d.copy = vi.fn(() => { d.order.push('copy'); return Promise.resolve(); });
+    runSubmit('new catalog', d);
+    expect(d.order.slice(0, 2)).toEqual(['copy', 'open']);
+    expect(d.copy).toHaveBeenCalledWith('new catalog');
+  });
+  it('reports copied only when the clipboard write succeeded', async () => {
+    for (const [copy, expected] of [[() => Promise.resolve(), true], [() => Promise.reject(new Error('not focused')), false], [() => { throw new Error('no clipboard'); }, false]]) {
+      const d = deps({ copy });
+      const p = runSubmit('q', d);
+      d.resolveRoute({ decision });
+      expect((await p).copied).toBe(expected);
+    }
+  });
+  it('treats a handoff tab the user closed before the decision as blocked', async () => {
+    const win = { closed: false };
+    const d = deps({ openTab: vi.fn(() => ({ win, blocked: false })) });
+    const p = runSubmit('q', d);
+    win.closed = true;
+    d.resolveRoute({ decision });
+    expect((await p).blocked).toBe(true);
   });
 });

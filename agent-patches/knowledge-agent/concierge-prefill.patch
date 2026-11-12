@@ -47,10 +47,10 @@ index f22e5ae..d1eb4ed 100644
  </script>
  </body>
 diff --git a/web/stale-owners/index.html b/web/stale-owners/index.html
-index 981d802..b06cab2 100644
+index 981d802..6d9d903 100644
 --- a/web/stale-owners/index.html
 +++ b/web/stale-owners/index.html
-@@ -967,7 +967,40 @@ function filterOptions() {
+@@ -967,7 +967,41 @@ function filterOptions() {
    sel.innerHTML = '<option value="">All statuses</option>' + st.map(s => '<option>' + esc(s) + '</option>').join(""); sel.value = fStatus;
  }
  function render() { chips(); banner(); stamp(); livebar(); buildIndex(); buildSources(); dsRender(); filterOptions(); renderTags(); table(); }
@@ -81,7 +81,8 @@ index 981d802..b06cab2 100644
 +  note.setAttribute("role", "status");
 +  const b = document.createElement("b");
 +  b.textContent = "Request from UC Concierge: ";
-+  note.append(b, document.createTextNode("“" + fitRequest(handoff.q, 300).text + "”. Search a data source or schema below to check its owners."));
++  const fit = fitRequest(handoff.q, 300);
++  note.append(b, document.createTextNode("“" + fit.text + (fit.cut ? "…" : "") + "”. Search a data source or schema below to check its owners."));
 +  $("#banner").after(note);
 +  $("#ci").focus();
 +}

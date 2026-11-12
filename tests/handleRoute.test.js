@@ -46,3 +46,14 @@ describe('createRateLimiter', () => {
     expect(l.hit('a')).toBe(true);
   });
 });
+
+describe('handleRoute passcode brute force', () => {
+  it('counts wrong passcodes against the rate limit', async () => {
+    const d = deps({ limiter: createRateLimiter({ limit: 20 }) });
+    const env = { CONCIERGE_PASSCODE: 'secret' };
+    const statuses = [];
+    for (let i = 0; i < 21; i++) statuses.push((await handleRoute(req({ headers: { 'x-concierge-passcode': `guess${i}` } }), env, d)).status);
+    expect(statuses.slice(0, 20).every(s => s === 401)).toBe(true);
+    expect(statuses[20]).toBe(429);
+  });
+});

@@ -11,7 +11,7 @@ export const PROVIDER_LABEL = {
 };
 
 /** The Skyscanner-style result: the chosen agent, why, how sure, and the other options. */
-export default function Results({ query, decision, blocked, hasUrl, onOpen, onReset }) {
+export default function Results({ query, decision, blocked, copied = false, hasUrl, onOpen, onReset }) {
   const agent = getAgent(decision.agent);
   const low = decision.confidence < CONFIDENCE_THRESHOLD;
   const pct = Math.round(decision.confidence * 100);
@@ -38,8 +38,8 @@ export default function Results({ query, decision, blocked, hasUrl, onOpen, onRe
           <div className="conf" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Routing confidence"><b style={{ width: `${pct}%` }} /></div>
         </div>
 
-        {opened && <p className="note info" role="status"><Info size={14} aria-hidden="true" style={{ verticalAlign: '-2px' }} /> {agent.short} opened in a new tab with your request. Your request is also on your clipboard.</p>}
-        {blocked && <p className="note" role="alert">Your browser blocked the new tab. Use the button below to open {agent.short}.</p>}
+        {opened && <p className="note info" role="status"><Info size={14} aria-hidden="true" style={{ verticalAlign: '-2px' }} /> {agent.short} opened in a new tab with your request.{copied ? ' Your request is also on your clipboard.' : ''}</p>}
+        {blocked && <p className="note" role="alert">The new tab didn’t open or was closed. Use the button below to open {agent.short}.</p>}
         {low && <p className="note">{decision.alternatives.length ? 'This request could fit more than one agent' : 'The Orchestrator isn’t sure which agent fits this'}, so you choose: pick one here or in the new tab, or rephrase your request.</p>}
         {decision.fallback && <p className="note">The AI router wasn’t available, so keyword rules picked this agent. Check the other options if it looks wrong.</p>}
 

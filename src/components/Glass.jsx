@@ -9,7 +9,8 @@ const NOOP = () => {}; // keeps the library's press effect; the wrapper owns the
  * hidden "sizer" copy of the content gives the wrapper its in-flow size and the
  * glass is absolutely centred on top of it.
  */
-export function LG({ children, onClick, radius = 999, padding = '9px 16px', className = '', strong = false, title, ariaLabel, pressed, tone = 'default' }) {
+export function LG({ children, onClick: onActivate, radius = 999, padding = '9px 16px', className = '', strong = false, title, ariaLabel, pressed, tone = 'default', disabled = false }) {
+  const onClick = disabled ? undefined : onActivate;
   const content = <span className={`lg-content lg-${tone}`}>{children}</span>;
   const onKey = (e) => {
     if (!onClick || e.repeat) return;
@@ -17,9 +18,10 @@ export function LG({ children, onClick, radius = 999, padding = '9px 16px', clas
   };
   return (
     <span
-      className={`lg-wrap ${onClick ? 'lg-clickable' : ''} ${className}`}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      className={`lg-wrap ${onClick ? 'lg-clickable' : ''} ${disabled ? 'lg-off' : ''} ${className}`}
+      role={onActivate ? 'button' : undefined}
+      tabIndex={onActivate ? 0 : undefined}
+      aria-disabled={disabled || undefined}
       aria-label={ariaLabel}
       aria-pressed={pressed}
       title={title}

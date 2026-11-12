@@ -65,3 +65,11 @@ describe('urlProblem (Settings validation)', () => {
     expect(urlProblem('javascript:alert(1)')).toMatch(/http/);
   });
 });
+
+describe('resolveAgentUrl with a malformed candidate', () => {
+  it('skips an invalid saved address and falls through to env or the default', () => {
+    expect(resolveAgentUrl('onboarding', { settings: { urls: { onboarding: 'localhost:9000' } } })).toBe('http://127.0.0.1:8784/onboarding-agent');
+    expect(resolveAgentUrl('onboarding', { settings: { urls: { onboarding: 'javascript:alert(1)' } }, env: { VITE_AGENT_URL_ONBOARDING: 'https://onb.example.com/' } })).toBe('https://onb.example.com/');
+    expect(resolveAgentUrl('access', { env: { VITE_AGENT_URL_ACCESS: 'nope' } })).toBeNull();
+  });
+});

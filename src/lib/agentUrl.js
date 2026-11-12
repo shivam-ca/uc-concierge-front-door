@@ -1,8 +1,9 @@
 import { getAgent } from '../config/agents.js';
 
-const clean = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+// A usable candidate: non-blank and a valid http(s) address. Anything else falls through to the next source.
+const clean = (v) => (typeof v === 'string' && v.trim() && !urlProblem(v) ? v.trim() : null);
 
-/** Settings (this browser) beat build-time env, which beats the registry default. */
+/** Settings (this browser) beat build-time env, which beats the registry default; invalid values are skipped. */
 export function resolveAgentUrl(id, { settings = {}, env = {} } = {}) {
   const agent = getAgent(id);
   if (!agent || agent.kind === 'platform') return null;

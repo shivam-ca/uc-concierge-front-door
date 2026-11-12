@@ -35,3 +35,9 @@ describe('knowledge agent patch', () => {
     expect(read('README.md')).toContain('git apply');
   });
 });
+
+describe('owner banner truncation', () => {
+  it('marks a shortened request with an ellipsis', () => {
+    expect(read('web/stale-owners/index.html')).toMatch(/fit\.cut \? "…" : ""/);
+  });
+});

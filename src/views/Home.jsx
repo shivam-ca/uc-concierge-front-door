@@ -56,7 +56,7 @@ export default function Home({ onSubmit, busy, initialText = '' }) {
               onChange={(e) => { setText(e.target.value); grow(e.target); }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(text); } }}
             />
-            <LG strong tone="primary" padding="13px 20px" className={!text.trim() || busy ? 'lg-off' : ''} onClick={() => submit(text)} ariaLabel="Find my agent">
+            <LG strong tone="primary" padding="13px 20px" disabled={!text.trim() || busy} onClick={() => submit(text)} ariaLabel="Find my agent">
               <span className="lg-primary">{busy ? 'Routing…' : 'Find my agent'}</span> <ArrowRight size={16} aria-hidden="true" />
             </LG>
           </Panel>

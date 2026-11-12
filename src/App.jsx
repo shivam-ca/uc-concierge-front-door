@@ -50,14 +50,14 @@ export default function App() {
       route: (q) => routeRequest(q, { passcode: settings.passcode }),
       publish: publishDecision,
       urls: () => agentUrls({ settings, env: ENV }),
+      copy: (text) => navigator.clipboard.writeText(text),
     }).then((out) => {
       if (out.error) {
         setState({ ...IDLE, query });
         setToast(out.error === 'passcode' ? 'This front door needs a passcode. Add it under Settings, then try again.' : out.message);
         return;
       }
-      setState({ busy: false, query, decision: out.decision, blocked: out.blocked });
-      navigator.clipboard?.writeText(query).catch(() => {});
+      setState({ busy: false, query, decision: out.decision, blocked: out.blocked, copied: out.copied });
     });
   };
 
@@ -73,7 +73,7 @@ export default function App() {
   if (hash === 'agents') view = <Agents settings={settings} />;
   else if (hash === 'settings') view = <Settings settings={settings} setSettings={setSettings} />;
   else if (hash.startsWith('soon/')) view = <ComingSoon id={hash.slice(5)} query={state.query} />;
-  else if (state.decision) view = <Results query={state.query} decision={state.decision} blocked={state.blocked} hasUrl={(id) => Boolean(buildAgentUrl(urlFor(id), 'x'))} onOpen={onOpen} onReset={reset} />;
+  else if (state.decision) view = <Results query={state.query} decision={state.decision} blocked={state.blocked} copied={state.copied} hasUrl={(id) => Boolean(buildAgentUrl(urlFor(id), 'x'))} onOpen={onOpen} onReset={reset} />;
   else view = <Home key={state.query ? 'q' : 'empty'} onSubmit={onSubmit} busy={state.busy} initialText={draft} />;
 
   const onAsk = !['agents', 'settings'].includes(hash) && !hash.startsWith('soon/');

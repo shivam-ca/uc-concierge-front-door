@@ -994,7 +994,8 @@ function conciergeHandoff() {
   note.setAttribute("role", "status");
   const b = document.createElement("b");
   b.textContent = "Request from UC Concierge: ";
-  note.append(b, document.createTextNode("“" + fitRequest(handoff.q, 300).text + "”. Search a data source or schema below to check its owners."));
+  const fit = fitRequest(handoff.q, 300);
+  note.append(b, document.createTextNode("“" + fit.text + (fit.cut ? "…" : "") + "”. Search a data source or schema below to check its owners."));
   $("#banner").after(note);
   $("#ci").focus();
 }

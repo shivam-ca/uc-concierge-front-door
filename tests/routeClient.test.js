@@ -31,3 +31,16 @@ describe('routeRequest', () => {
     }
   });
 });
+
+describe('routeRequest timeout', () => {
+  it('gives up on a stalled API and routes locally', async () => {
+    const fetchFn = (url, init) => !init.signal ? new Promise(() => {}) : new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
+    const out = await routeRequest('I want to create a new catalog', { fetchFn, timeoutMs: 20 });
+    expect(out.decision).toMatchObject({ agent: 'onboarding', provider: 'keywords-local', fallback: true });
+  });
+  it('also times out a stalled response body', async () => {
+    const fetchFn = (url, init) => Promise.resolve({ ok: true, status: 200, json: () => !init.signal ? new Promise(() => {}) : new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))) });
+    const out = await routeRequest('Who owns the sales schema?', { fetchFn, timeoutMs: 20 });
+    expect(out.decision).toMatchObject({ agent: 'ownership', provider: 'keywords-local' });
+  });
+});

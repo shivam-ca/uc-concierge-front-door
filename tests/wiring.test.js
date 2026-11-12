@@ -1,0 +1,27 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+
+const src = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
+
+describe('page wiring', () => {
+  it('the handoff page detaches its opener before rendering anything', () => {
+    const main = src('handoff/main.jsx');
+    expect(main.indexOf('severOpener()')).toBeGreaterThan(-1);
+    expect(main.indexOf('severOpener()')).toBeLessThan(main.indexOf('createRoot('));
+  });
+  it('the handoff effect cancels its wait on cleanup (StrictMode-safe)', () => {
+    const h = src('handoff/Handoff.jsx');
+    expect(h).toMatch(/waitForDecision\(nonce, \{ signal: ctrl\.signal \}\)/);
+    expect(h).toMatch(/ctrl\.abort\(\)/);
+  });
+  it('the front door sweeps leftover hand-off entries on load', () => {
+    expect(src('main.jsx')).toContain('sweepHandoffs()');
+  });
+});
+
+describe('accessibility wiring', () => {
+  it('the liquid-glass button exposes aria-disabled and Home uses it for the empty/busy search', () => {
+    expect(src('components/Glass.jsx')).toMatch(/aria-disabled=\{disabled \|\| undefined\}/);
+    expect(src('views/Home.jsx')).toMatch(/disabled=\{!text\.trim\(\) \|\| busy\}/);
+  });
+});

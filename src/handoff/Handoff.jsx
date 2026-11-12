@@ -7,6 +7,7 @@ import ComingSoon from '../views/ComingSoon.jsx';
 import { waitForDecision } from '../lib/handoffChannel.js';
 import { buildAgentUrl } from '../lib/agentUrl.js';
 import { getAgent } from '../config/agents.js';
+import { choicesFor } from '../lib/choices.js';
 import { planHandoff } from './plan.js';
 
 const DWELL_MS = 1500;
@@ -28,15 +29,14 @@ export default function Handoff() {
 
   useEffect(() => {
     if (!nonce) { setPlan(planHandoff(null)); return undefined; }
-    let live = true;
-    const slow = setTimeout(() => { if (live) setPlan(p => p || planHandoff(null)); }, WAIT_LIMIT_MS);
-    waitForDecision(nonce).then((p) => {
-      if (!live) return;
+    const ctrl = new AbortController();
+    const slow = setTimeout(() => setPlan(p => p || planHandoff(null)), WAIT_LIMIT_MS);
+    waitForDecision(nonce, { signal: ctrl.signal }).then((p) => {
       clearTimeout(slow);
       setPayload(p);
       setPlan(planHandoff(p));
     });
-    return () => { live = false; clearTimeout(slow); };
+    return () => { ctrl.abort(); clearTimeout(slow); };
   }, []);
 
   useEffect(() => {
@@ -88,15 +88,21 @@ export default function Handoff() {
                 </LG>
                 {!stay && <button type="button" className="btn" onClick={() => setStay(true)}><Hand size={15} aria-hidden="true" /> Stay here</button>}
               </div>
-              {stay && decision.alternatives.length > 0 && (
+              {stay && (
                 <div className="alts">
-                  <span className="kicker">Or open instead</span>
-                  {decision.alternatives.map(a => (
+                  <span className="kicker">Or choose another</span>
+                  {choicesFor({ ...decision, confidence: 0 }).map(a => (
                     <div className="alt" key={a.agent}>
-                      <AgentMark id={a.agent} size={30} />
-                      <button type="button" className="btn small" onClick={() => go(a.agent)}>Open {getAgent(a.agent).short}</button>
+                      <div>
+                        <AgentMark id={a.agent} size={30} />
+                        {a.reason && <div className="alt-why">{a.reason}</div>}
+                      </div>
+                      <button type="button" className="btn small" onClick={() => go(a.agent)}>
+                        {payload.urls?.[a.agent] ? 'Open' : 'See'} {getAgent(a.agent).short}
+                      </button>
                     </div>
                   ))}
+                  <a className="btn small" href="/" style={{ justifySelf: 'start' }}>Back to UC Concierge</a>
                 </div>
               )}
             </Panel>
