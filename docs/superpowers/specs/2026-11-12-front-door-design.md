@@ -67,10 +67,10 @@ Stack: React 19, Vite 6, framer-motion 11, liquid-glass-react, lucide-react. The
 ## 4. Handoff flow (popup-safe)
 
 1. When the user submits, and while still inside the click/keypress gesture, the app calls `window.open('/handoff.html#<nonce>', '_blank')`. Browsers allow this because it happens inside the gesture.
-2. The front door POSTs `/api/route`. When the decision arrives, it is sent on a `BroadcastChannel('concierge-handoff')` with that nonce. The handoff tab also asks for it again on load, which covers a race where the decision arrives first. The decision is mirrored to `sessionStorage` so it survives a reload.
+2. The front door POSTs `/api/route`. When the decision arrives, it is sent on a `BroadcastChannel('concierge-handoff')` with that nonce. The handoff tab also asks for it again on load, which covers a race where the decision arrives first. The decision is also written to `localStorage`, which the new tab can read even if it loads after the broadcast (it also listens for `storage` events). The entry is removed once read. *(Implementation note: `sessionStorage` is per-tab, so the new tab could not read it.)*
 3. The handoff tab then picks one of three outcomes:
    - **Confidence ≥ 0.6 and the agent has a URL:** show the card, then after 1.5s run `location.replace(buildAgentUrl(agent, query))`.
-   - **Confidence < 0.6:** show the top three choices as buttons. There is no automatic redirect.
+   - **Confidence < 0.6:** show every routable agent as a choice: the best guess first, then its alternatives, then the rest. There is no automatic redirect.
    - **The agent has no URL (coming soon):** show the coming-soon landing inside the tab.
 4. If `window.open` returned `null` (the popup was blocked), the results card shows a prominent "Open <agent>" button instead.
 5. `buildAgentUrl` appends `q=<urlencoded query>&from=concierge` to the configured URL. It preserves any existing query string and hash, for example `/v7?q=…#log`. The request text is also copied to the clipboard as a fallback (best effort; failures are ignored).
@@ -91,7 +91,7 @@ Stack: React 19, Vite 6, framer-motion 11, liquid-glass-react, lucide-react. The
 - **Providers.** `ROUTER_PROVIDER` selects the adapter, and each adapter has the same signature, `classify(query, catalog) → raw decision`:
   - `anthropic` (default) uses the Messages API with one forced tool, `route_request`, and the model from `ROUTER_MODEL` (default `claude-haiku-5-5`). It needs `ANTHROPIC_API_KEY`.
   - `azure-openai` uses chat completions with one forced function. It needs `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_DEPLOYMENT`; `AZURE_OPENAI_API_VERSION` is optional.
-  - `azure-foundry` uses Claude on Azure AI Foundry, which speaks the Anthropic Messages format. It needs `AZURE_FOUNDRY_ENDPOINT` and `AZURE_FOUNDRY_API_KEY`.
+  - `azure-foundry` uses Claude on Azure AI Foundry, which speaks the Anthropic Messages format. It needs `AZURE_FOUNDRY_RESOURCE` (the Foundry resource host, e.g. `my-res.azure.anthropic.com`) and `AZURE_FOUNDRY_API_KEY`.
 - **Catalog.** The prompt's catalog is built from the same `agents.js` registry the UI uses (`handles` and `examples`), so the UI and the router cannot drift apart.
 - **Fallback.**
   - A missing key, a provider error or an 8s timeout makes the server fall back to the shared keyword router (`src/lib/keywordRouter.js`). The response then carries `fallback: true` and `provider: "keywords"`.
@@ -105,7 +105,7 @@ Each entry has these fields: `id`, `name`, `short`, `color`, `kind` (`live` | `s
 
 | id | Default URL | Notes |
 |---|---|---|
-| onboarding | `http://127.0.0.1:8784/` | Onboarding Agent v4 Simple Finder |
+| onboarding | `http://127.0.0.1:8784/onboarding-agent` | Onboarding Agent v4 Simple Finder |
 | tracker | `http://127.0.0.1:8765/v7` | Tracker Agent v7 (Assistant is the default tab) |
 | knowledge | `http://127.0.0.1:8765/chat` | Knowledge Agent (package launcher port, which clashes with Tracker; see Settings) |
 | ownership | `http://127.0.0.1:8766/stale-owners` | Owner Validation |
@@ -128,7 +128,7 @@ If `q` is missing, nothing changes.
 | Onboarding v4 | `web/app.js`, input `#q` in `#composer` | branch `feat/concierge-prefill` off `feat/simple-finder` in `onboarding-agent-demo`, pushed, not merged |
 | Tracker v7 | `web/v7/index.html`, Assistant input `#a-text` | branch `feat/concierge-prefill` off `feat/v7-langsmith` in `uc-concierge`, pushed, not merged |
 | Knowledge | `web/chat/index.html`, composer `#msgtext` (new chat) | patch in this repo: `agent-patches/knowledge-agent/` |
-| Owner | `web/stale-owners/index.html` | same patch; `q` fills the data-source/schema search box `#ci` and opens its suggestions. A "Request from UC Concierge" banner shows the full text (the Owner agent is review-driven, with no chat) |
+| Owner | `web/stale-owners/index.html` | same patch; a "Request from UC Concierge" banner shows the text and the search box `#ci` gets focus. It does not filter, because a whole sentence would match nothing (the Owner agent is review-driven, with no chat) |
 
 `agent-patches/knowledge-agent/` contains the changed files, a unified `.patch` against the 6 Nov `KnowledgeAgent.zip`, and a README with apply steps. A rebuilt `Downloads/KnowledgeAgent_prefill.zip` is produced for convenience; it is not committed.
 
@@ -142,7 +142,7 @@ Each agent repo runs its existing test suite, and new tests are added where a JS
   - `api/route` handler: validation, passcode, rate limit, ID validation and clamping;
   - `buildAgentUrl`, including existing query/hash, encoding and a missing URL;
   - URL-resolution precedence.
-- A headless Edge screenshot pass (with `--no-proxy-server`) covers Home, the Results card, Handoff, Agents, Settings and Coming soon, in both light and dark.
+- A headless browser screenshot pass (Chrome via playwright-core, with `--no-proxy-server`) covers Home, the Results card, Handoff, Agents, Settings and Coming soon at desktop and phone widths. The theme is dark only, matching the Aurora Glass demo.
 - An end-to-end check runs locally with `vercel dev` or Vite plus the function: submit "I want to create a new catalog" with Onboarding v4 running on :8784 and confirm that the new tab asks it automatically.
 
 ## 9. Deployment
