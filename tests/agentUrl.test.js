@@ -3,7 +3,7 @@ import { resolveAgentUrl, buildAgentUrl, findPortClashes } from '../src/lib/agen
 
 describe('resolveAgentUrl', () => {
   it('falls back to the registry default', () => {
-    expect(resolveAgentUrl('onboarding')).toBe('http://127.0.0.1:8784/');
+    expect(resolveAgentUrl('onboarding')).toBe('http://127.0.0.1:8784/onboarding-agent');
   });
   it('prefers env over default and settings over env', () => {
     const env = { VITE_AGENT_URL_ONBOARDING: 'https://onb.example.com/' };
@@ -11,7 +11,7 @@ describe('resolveAgentUrl', () => {
     expect(resolveAgentUrl('onboarding', { env, settings: { urls: { onboarding: 'http://localhost:9000/' } } })).toBe('http://localhost:9000/');
   });
   it('ignores blank overrides', () => {
-    expect(resolveAgentUrl('onboarding', { settings: { urls: { onboarding: '   ' } } })).toBe('http://127.0.0.1:8784/');
+    expect(resolveAgentUrl('onboarding', { settings: { urls: { onboarding: '   ' } } })).toBe('http://127.0.0.1:8784/onboarding-agent');
   });
   it('returns null for coming-soon agents with no override and for unknown ids', () => {
     expect(resolveAgentUrl('access')).toBeNull();

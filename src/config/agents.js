@@ -7,7 +7,7 @@ export const AGENTS = [
     tagline: 'Finds the right form and the few steps to onboard a catalog, schema or Delta Share.',
     handles: 'Creating or onboarding a new Unity Catalog catalog, schema, volume, external location, Delta Share (inbound or outbound, including 84.51 shares), service principal or workspace onboarding; which request form to raise; onboarding steps and prerequisites.',
     examples: ['I want to create a new catalog', 'How do I onboard an inbound Delta Share from 84.51?', 'Which form do I use for a new schema?'],
-    defaultUrl: 'http://127.0.0.1:8784/',
+    defaultUrl: 'http://127.0.0.1:8784/onboarding-agent',
   },
   {
     id: 'tracker', name: 'Tracker Agent', short: 'Tracker', color: '#f472b6', kind: 'live', version: 'v7 · Assistant',

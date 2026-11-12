@@ -51,7 +51,7 @@ describe('runSubmit', () => {
 describe('agentUrls', () => {
   it('resolves a URL (or null) for every routable agent', () => {
     expect(agentUrls({ settings: { urls: { tracker: 'http://t/' } }, env: {} })).toEqual({
-      onboarding: 'http://127.0.0.1:8784/', tracker: 'http://t/', knowledge: 'http://127.0.0.1:8765/chat',
+      onboarding: 'http://127.0.0.1:8784/onboarding-agent', tracker: 'http://t/', knowledge: 'http://127.0.0.1:8765/chat',
       ownership: 'http://127.0.0.1:8766/stale-owners', access: null,
     });
   });
