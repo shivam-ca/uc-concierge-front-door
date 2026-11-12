@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge Agent</title>
+<!-- A separate page: it shares the look of the Knowledge Agent console but none of its code. Its only server
+     contact is /api/chat/*, so removing web/chat (or CHAT_ENABLED=false) takes it away and nothing else. -->
+<style>
+:root {
+  --bg:#f5f6f8; --surface:#ffffff; --sunken:#f9fafb; --soft:#f2f4f7; --line:#e4e7ec; --line-2:#d0d5dd;
+  --ink:#101828; --ink-2:#344054; --ink-3:#667085;
+  --brand:#0b4a9e; --brand-solid:#0b4a9e; --brand-bg:#eaf1fb;
+  --go:#067647; --go-bg:#e8f5ee; --warn:#b54708; --warn-bg:#fff4e5; --bad:#b42318; --bad-bg:#fdecea;
+  --mine:#0b4a9e; --mine-ink:#ffffff; --teamc:#5b5fc7; --teamc-bg:#ecebfa;
+  --shadow:0 1px 2px rgba(16,24,40,.06); --r:12px; --r-sm:8px;
+  font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif; font-size:15px; line-height:1.55; color:var(--ink); background:var(--bg);
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg:#0c1118; --surface:#141b25; --sunken:#101720; --soft:#1a2330; --line:#232d3b; --line-2:#324052;
+  --ink:#f2f4f7; --ink-2:#cdd5df; --ink-3:#98a2b3; --brand:#8db3f0; --brand-solid:#2f6fd0; --brand-bg:#16263d;
+  --go:#5fd08f; --go-bg:#0f2a1c; --warn:#f0b266; --warn-bg:#2e2411; --bad:#f1968c; --bad-bg:#341a19;
+  --mine:#2f6fd0; --teamc:#a4acec; --teamc-bg:#22244a; --shadow:none; } }
+* { box-sizing:border-box; } html, body { height:100%; } body { margin:0; background:var(--bg); color:var(--ink); }
+:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+button { font:inherit; font-size:14px; font-weight:600; min-height:38px; padding:0 14px; border-radius:var(--r-sm); border:1px solid var(--line-2); background:var(--surface);
+  color:var(--ink-2); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px; box-shadow:var(--shadow); }
+button:hover:not(:disabled) { background:var(--soft); } button:disabled { opacity:.5; cursor:default; }
+button.primary { background:var(--brand-solid); border-color:var(--brand-solid); color:#fff; } button.primary:hover:not(:disabled) { filter:brightness(.92); background:var(--brand-solid); }
+button.ghost { background:none; border-color:transparent; box-shadow:none; } button.ghost:hover:not(:disabled) { background:var(--soft); }
+button.danger { color:var(--bad); border-color:color-mix(in srgb, var(--bad) 35%, var(--line-2)); }
+button.icon { width:38px; padding:0; } svg.i { width:1.15em; height:1.15em; flex:none; }
+input, textarea, select { font:inherit; font-size:14.5px; color:var(--ink); background:var(--surface); border:1px solid var(--line-2); border-radius:var(--r-sm); padding:8px 12px; min-height:40px; }
+input:focus, textarea:focus, select:focus { outline:3px solid color-mix(in srgb, var(--brand) 22%, transparent); border-color:var(--brand); }
+.sr-only { position:absolute; width:1px; height:1px; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; padding:0; }
+.hidden, [hidden] { display:none !important; } .muted { color:var(--ink-3); } .small { font-size:13px; }
+
+/* header */
+header.top { height:60px; display:flex; align-items:center; gap:14px; padding:0 24px; background:var(--surface); border-bottom:1px solid var(--line); }
+.brand { display:flex; align-items:center; gap:11px; font-size:16.5px; font-weight:650; letter-spacing:-.015em; }
+.logo { width:32px; height:32px; border-radius:9px; background:var(--brand-solid); color:#fff; display:flex; align-items:center; justify-content:center; } .logo svg.i { width:18px; height:18px; }
+.crumb { color:var(--ink-3); font-weight:500; } .spacer { flex:1; }
+.who { display:flex; align-items:center; gap:10px; }
+.seg { display:inline-flex; background:var(--soft); border-radius:10px; padding:3px; }
+.seg button { border:0; background:none; box-shadow:none; min-height:32px; color:var(--ink-3); } .seg button[aria-pressed="true"] { background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(16,24,40,.14); }
+.namebox { width:170px; min-height:34px; padding:4px 10px; } .backlink { display:none; }
+.linkout { color:var(--brand); font-weight:600; font-size:13.5px; text-decoration:none; } .linkout:hover { text-decoration:underline; }
+
+/* layout */
+.app { display:grid; grid-template-columns:minmax(300px, 360px) minmax(0,1fr) 320px; height:calc(100vh - 60px); }
+.brand .bt { white-space:nowrap; }
+.app.noside { grid-template-columns:minmax(300px, 360px) minmax(0,1fr); }
+.col { min-height:0; min-width:0; display:flex; flex-direction:column; background:var(--surface); }
+.convs { border-right:1px solid var(--line); } .side { border-left:1px solid var(--line); overflow:auto; background:var(--sunken); }
+.colhead { padding:14px 16px 10px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:10px; }
+.colhead .row { display:flex; gap:8px; align-items:center; } .colhead h2 { margin:0; font-size:17px; flex:1; letter-spacing:-.01em; }
+.searchbox { position:relative; } .searchbox svg.i { position:absolute; left:11px; top:11px; color:var(--ink-3); pointer-events:none; } .searchbox input { width:100%; padding-left:34px; }
+.tabs { display:flex; gap:4px; flex-wrap:wrap; } .tabs button { min-height:30px; padding:0 10px; font-size:13px; border:0; box-shadow:none; background:none; color:var(--ink-3); border-radius:99px; }
+.tabs button[aria-pressed="true"] { background:var(--brand-bg); color:var(--brand); } .tabs .n { font-size:11.5px; background:var(--soft); border-radius:99px; padding:0 6px; margin-left:2px; color:var(--ink-2); }
+.tabs button[aria-pressed="true"] .n { background:var(--surface); }
+.list { overflow:auto; flex:1; }
+.conv { display:grid; grid-template-columns:40px 1fr; gap:12px; padding:13px 16px; border-bottom:1px solid var(--line); cursor:pointer; border-left:3px solid transparent; text-align:left; background:none; border-top:0; border-right:0; width:100%; border-radius:0; box-shadow:none; min-height:0; align-items:start; justify-content:start; font-weight:400; }
+.conv:hover { background:var(--sunken); } .conv[aria-current="true"] { background:var(--brand-bg); border-left-color:var(--brand-solid); }
+.avatar { width:40px; height:40px; border-radius:50%; background:var(--brand-bg); color:var(--brand); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex:none; }
+.avatar.agent { background:var(--brand-solid); color:#fff; } .avatar.team { background:var(--teamc-bg); color:var(--teamc); } .avatar svg.i { width:19px; height:19px; }
+.conv > span { min-width:0; } .conv .top { display:flex; gap:8px; align-items:baseline; } .conv .name { font-weight:650; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); }
+.conv .time { margin-left:auto; flex:none; font-size:12.5px; color:var(--ink-3); } .conv .title { font-size:14px; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:1px 0; }
+.conv .prev { font-size:13px; color:var(--ink-3); display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; } .conv .foot { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+.sb { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:650; line-height:1; padding:4px 8px; border-radius:6px; background:var(--soft); color:var(--ink-2); white-space:nowrap; }
+.sb svg.i { width:13px; height:13px; } .sb.ok { background:var(--go-bg); color:var(--go); } .sb.warn { background:var(--warn-bg); color:var(--warn); } .sb.bad { background:var(--bad-bg); color:var(--bad); } .sb.info { background:var(--brand-bg); color:var(--brand); } .sb.team { background:var(--teamc-bg); color:var(--teamc); }
+
+/* thread */
+.thread { background:var(--bg); } .thead { display:flex; align-items:center; gap:12px; padding:12px 20px; background:var(--surface); border-bottom:1px solid var(--line); min-height:64px; }
+.thead h2 { margin:0; font-size:16px; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .thead .sub { font-size:13px; color:var(--ink-3); }
+.msgs { flex:1; overflow-y:auto; overflow-x:hidden; min-width:0; padding:20px 24px; display:flex; flex-direction:column; gap:14px; scroll-behavior:smooth; }
+.day { align-self:center; font-size:12px; color:var(--ink-3); background:var(--soft); border-radius:99px; padding:2px 12px; }
+.msg { display:flex; gap:10px; max-width:min(760px, 92%); min-width:0; } .msg .avatar { flex:none; } .msg.mine { align-self:flex-end; flex-direction:row-reverse; } .msg.sys { align-self:center; max-width:90%; }
+.bub { max-width:100%; background:var(--surface); border:1px solid var(--line); border-radius:4px 14px 14px 14px; padding:10px 14px; box-shadow:var(--shadow); min-width:0; overflow-wrap:anywhere; }
+.msg.mine .bub { background:var(--mine); border-color:var(--mine); color:var(--mine-ink); border-radius:14px 4px 14px 14px; }
+.msg.team .bub { border-left:3px solid var(--teamc); } .msg.agent .bub { border-left:3px solid var(--brand-solid); }
+.meta { display:flex; gap:8px; align-items:baseline; margin-bottom:2px; font-size:12.5px; } .meta b { font-size:13.5px; } .msg.mine .meta { justify-content:flex-end; color:rgba(255,255,255,.85); } .msg:not(.mine) .meta { color:var(--ink-3); } .msg:not(.mine) .meta b { color:var(--ink); }
+.body p { margin:4px 0; } .body h4 { margin:10px 0 3px; font-size:14.5px; } .body ul { margin:4px 0; padding-left:20px; } .body a { color:var(--brand); } .msg.mine .body a { color:#fff; }
+.sys-note { display:flex; gap:8px; align-items:center; background:var(--soft); color:var(--ink-2); font-size:13px; border-radius:99px; padding:5px 14px; } .sys-note.bad { background:var(--bad-bg); color:var(--bad); } .sys-note svg.i { width:15px; height:15px; }
+.handoff { display:flex; gap:10px; align-items:flex-start; background:var(--warn-bg); color:var(--ink); border:1px solid color-mix(in srgb, var(--warn) 30%, transparent); border-radius:var(--r-sm); padding:10px 12px; margin-top:8px; font-size:14px; }
+.handoff svg.i { color:var(--warn); margin-top:2px; }
+.src { margin-top:10px; border-top:1px solid var(--line); padding-top:8px; } .src h5 { margin:0 0 6px; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
+.srow { display:flex; gap:8px; align-items:center; padding:5px 8px; border-radius:7px; background:var(--sunken); margin-bottom:5px; font-size:13.5px; }
+.srow { min-width:0; } .srow a { min-width:0; color:var(--brand); font-weight:600; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .srow a:hover { text-decoration:underline; } .srow .sb { margin-left:auto; }
+.disc span { min-width:0; overflow-wrap:anywhere; } .disc { margin-top:8px; font-size:12.5px; color:var(--ink-3); display:flex; gap:6px; align-items:flex-start; } .disc svg.i { margin-top:2px; color:var(--brand); width:14px; height:14px; }
+.conf { display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12.5px; color:var(--ink-3); } .meter { width:70px; height:6px; background:var(--line); border-radius:99px; overflow:hidden; } .meter span { display:block; height:100%; background:var(--go); } .meter.medium span { background:var(--warn); } .meter.low span { background:var(--bad); }
+.typing { align-self:flex-start; display:flex; gap:10px; align-items:center; } .typing .bub { padding:10px 14px; display:flex; flex-direction:column; gap:6px; }
+.dots { display:inline-flex; gap:4px; } .dots i { width:7px; height:7px; border-radius:50%; background:var(--ink-3); animation:blink 1.2s infinite; } .dots i:nth-child(2) { animation-delay:.2s; } .dots i:nth-child(3) { animation-delay:.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity:.25; } 40% { opacity:1; } } @media (prefers-reduced-motion: reduce) { .dots i { animation:none; opacity:.6; } .msgs { scroll-behavior:auto; } }
+.step { font-size:13px; color:var(--ink-2); }
+
+/* composer */
+.composer { background:var(--surface); border-top:1px solid var(--line); padding:12px 20px 14px; }
+.composer .box { display:flex; gap:10px; align-items:flex-end; } .composer textarea { flex:1; resize:none; min-height:44px; max-height:160px; line-height:1.45; }
+.composer .hint { margin-top:6px; font-size:12.5px; color:var(--ink-3); display:flex; gap:12px; flex-wrap:wrap; } kbd { font:600 11px ui-monospace, Consolas, monospace; border:1px solid var(--line-2); border-radius:5px; padding:0 5px; background:var(--sunken); }
+.banner { display:flex; gap:10px; align-items:center; padding:10px 14px; font-size:14px; border-bottom:1px solid; } .banner.warn { background:var(--warn-bg); color:var(--warn); border-color:color-mix(in srgb, var(--warn) 30%, transparent); }
+.banner.bad { background:var(--bad-bg); color:var(--bad); border-color:color-mix(in srgb, var(--bad) 30%, transparent); } .banner.info { background:var(--brand-bg); color:var(--brand); border-color:color-mix(in srgb, var(--brand) 25%, transparent); }
+.banner .spacer { flex:1; } .banner button { min-height:30px; font-size:13px; }
+.teambar { padding:12px 20px; background:var(--surface); border-top:1px solid var(--line); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+/* welcome / empty */
+.welcome { margin:auto; text-align:center; max-width:520px; padding:30px 20px; } .welcome .art { width:64px; height:64px; border-radius:50%; background:var(--brand-bg); color:var(--brand); display:inline-flex; align-items:center; justify-content:center; } .welcome .art svg.i { width:30px; height:30px; }
+.welcome h2 { font-size:21px; margin:16px 0 6px; letter-spacing:-.01em; } .welcome p { margin:0; color:var(--ink-3); } .chips { display:flex; flex-direction:column; gap:8px; margin-top:20px; }
+.chips button { justify-content:flex-start; text-align:left; font-weight:500; min-height:42px; height:auto; padding:8px 14px; }
+.empty { padding:40px 20px; text-align:center; color:var(--ink-3); } .skel { padding:14px 16px; border-bottom:1px solid var(--line); } .skel i { display:block; height:10px; border-radius:6px; margin:7px 0; background:linear-gradient(90deg, var(--soft), var(--line), var(--soft)); background-size:200% 100%; animation:shim 1.2s infinite; } .skel i:nth-child(1) { width:45%; } .skel i:nth-child(2) { width:90%; } @keyframes shim { to { background-position:-200% 0; } }
+
+/* side panel */
+.panel { padding:16px; border-bottom:1px solid var(--line); } .panel h3 { margin:0 0 10px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); display:flex; align-items:center; gap:7px; } .panel h3 svg.i { width:14px; height:14px; }
+.kv { display:flex; justify-content:space-between; gap:10px; padding:6px 0; font-size:13.5px; } .kv dt { color:var(--ink-3); } .kv dd { margin:0; text-align:right; font-weight:600; overflow-wrap:anywhere; }
+.chip { display:inline-block; font-size:12.5px; padding:2px 9px; border-radius:99px; background:var(--surface); border:1px solid var(--line-2); margin:0 4px 4px 0; }
+.tl { list-style:none; margin:0; padding:0 0 0 6px; border-left:2px solid var(--line); } .tl li { position:relative; margin:0 0 12px 14px; font-size:13px; } .tl li::before { content:""; position:absolute; left:-21px; top:5px; width:10px; height:10px; border-radius:50%; background:var(--go); box-shadow:0 0 0 3px var(--sunken); }
+.tl li.bad::before { background:var(--bad); } .tl li.warn::before { background:var(--warn); } .tl .st { font-weight:650; color:var(--ink); } .tl .n { display:inline-block; font-size:11px; font-weight:700; color:var(--brand); background:var(--brand-bg); border-radius:5px; padding:0 5px; margin-right:6px; } .tl .d { color:var(--ink-2); } .tl .t { color:var(--ink-3); font-size:12px; }
+
+dialog { border:1px solid var(--line); border-radius:14px; padding:22px; max-width:560px; width:calc(100% - 24px); background:var(--surface); color:var(--ink); } dialog::backdrop { background:rgba(16,24,40,.45); }
+dialog h3 { margin:0 0 10px; font-size:18px; } dialog label { display:block; margin:10px 0; font-weight:600; font-size:13.5px; } dialog label input, dialog label textarea, dialog label select { width:100%; margin-top:5px; font-weight:400; }
+dialog .err { color:var(--bad); min-height:1.2em; margin:6px 0 0; font-size:13.5px; } dialog .row { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+.toasts { position:fixed; right:16px; bottom:16px; display:flex; flex-direction:column; gap:8px; z-index:60; } .toast { background:var(--ink); color:var(--bg); padding:10px 14px; border-radius:8px; max-width:420px; font-size:14px; box-shadow:0 6px 20px rgba(0,0,0,.25); } .toast.bad { background:var(--bad); color:#fff; }
+
+@media (max-width:1180px) { .app { grid-template-columns:minmax(280px, 330px) minmax(0,1fr); } .side { display:none; } }
+@media (max-width:820px) {
+  header.top { padding:0 10px; gap:8px; } .crumb, .brand .bt, .linkout { display:none; } .namebox { width:120px; } .seg button { padding:0 9px; font-size:13px; }
+  .app { grid-template-columns:minmax(0,1fr); } .col.thread { display:none; } .app.reading .convs { display:none; } .app.reading .col.thread { display:flex; }
+  .backlink { display:inline-flex; } .msgs { padding:14px 12px; } .composer { padding:10px 12px; } .msg { max-width:96%; } }
+
+/* ===================================================================== expand / collapse + the Details tab */
+.ttabs { display:flex; gap:4px; padding:0 20px; background:var(--surface); border-bottom:1px solid var(--line); }
+.ttabs button { border:0; border-bottom:2px solid transparent; border-radius:0; box-shadow:none; min-height:42px; background:none; color:var(--ink-3); }
+.ttabs button:hover:not(:disabled) { background:none; color:var(--ink); }
+.ttabs button[aria-selected="true"] { color:var(--brand); border-bottom-color:var(--brand); }
+.ttabs button svg.i { width:16px; height:16px; }
+.dpane { flex:1; overflow:auto; padding:16px 24px 28px; background:var(--bg); display:flex; flex-direction:column; gap:12px; }
+.dpane > * { width:100%; max-width:880px; align-self:center; }
+.dtools { display:flex; gap:8px; justify-content:flex-end; } .dtools button { min-height:32px; font-size:13px; box-shadow:none; }
+.dsec { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); overflow:hidden; }
+.dsec-h { width:100%; justify-content:flex-start; gap:10px; border:0; border-radius:0; box-shadow:none; background:none; min-height:48px; padding:0 16px; color:var(--ink); }
+.dsec-h:hover:not(:disabled) { background:var(--sunken); }
+.dsec-h .tt { font-size:14.5px; font-weight:650; } .dsec-h .meta { margin-left:auto; display:inline-flex; gap:8px; align-items:center; font-weight:500; font-size:13px; color:var(--ink-3); }
+.dsec-h .chev { display:inline-flex; transition:transform .15s; color:var(--ink-3); } .dsec-h > svg.i { color:var(--ink-3); }
+.dsec.closed .chev { transform:rotate(-90deg); } .dsec.closed .dsec-b { display:none; }
+.dsec-b { padding:4px 16px 16px; border-top:1px solid var(--line); }
+.dsec-b .kv:first-child { padding-top:10px; }
+.src-h { width:100%; justify-content:flex-start; gap:6px; background:none; border:0; box-shadow:none; min-height:30px; padding:0; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
+.src-h:hover:not(:disabled) { background:none; color:var(--ink); } .src-h .chev { display:inline-flex; transition:transform .15s; } .src-h svg.i { width:14px; height:14px; }
+.src-h .cnt { background:var(--soft); color:var(--ink-2); border-radius:99px; padding:0 7px; font-size:11px; letter-spacing:0; }
+.src.closed .chev { transform:rotate(-90deg); } .src.closed .src-b { display:none; }
+.thead .focusbtn { flex:none; }
+.rail { display:none; flex-direction:column; align-items:center; gap:10px; padding:12px 0; overflow-y:auto; height:100%; }
+.rail .rail-list { display:flex; flex-direction:column; gap:8px; align-items:center; margin-top:6px; padding-top:12px; border-top:1px solid var(--line); width:100%; }
+.rail-av { position:relative; width:44px; min-height:44px; height:44px; padding:0; border:0; background:none; box-shadow:none; border-radius:50%; }
+.rail-av:hover:not(:disabled) { background:none; } .rail-av .avatar { width:40px; height:40px; font-size:13px; }
+.rail-av[aria-current="true"] .avatar { box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--brand-solid); }
+.rail-av .dot { position:absolute; right:1px; bottom:1px; width:11px; height:11px; border-radius:50%; background:var(--ink-3); border:2px solid var(--surface); }
+.rail-av .dot.ok { background:var(--go); } .rail-av .dot.warn { background:var(--warn); } .rail-av .dot.bad { background:var(--bad); } .rail-av .dot.team { background:var(--teamc); } .rail-av .dot.info { background:var(--brand-solid); }
+@media (min-width:821px) {
+  .app { grid-template-columns:var(--lw, 360px) minmax(0,1fr); transition:grid-template-columns .2s ease; }
+  .app.listcollapsed { --lw:64px; } .app.listcollapsed .colhead, .app.listcollapsed .list { display:none; } .app.listcollapsed .rail { display:flex; }
+  .app.focus { grid-template-columns:minmax(0,1fr); } .app.focus .convs { display:none; }
+  body.focus header.top { display:none; } body.focus .app { height:100vh; }
+}
+@media (max-width:820px) { .collapse-btn, .focusbtn, .rail { display:none !important; } .ttabs { padding:0 12px; } .dpane { padding:12px; } .dsec-h { padding:0 12px; } }
+@media (prefers-reduced-motion: reduce) { .app, .dsec-h .chev, .src-h .chev { transition:none; } }
+
+/* ===================================================================== standard chat console */
+:root { --col:760px; }
+body { overflow:hidden; }
+.app { height:100vh; }
+.convs { background:var(--sunken); border-right:1px solid var(--line); }
+.colhead { gap:10px; padding:14px 12px 10px; border-bottom:0; }
+.brandrow { display:flex; align-items:center; gap:10px; padding:2px 4px 2px 4px; }
+.brandrow .logo { width:30px; height:30px; border-radius:9px; background:var(--brand-solid); color:#fff; display:flex; align-items:center; justify-content:center; flex:none; } .brandrow .logo svg.i { width:17px; height:17px; }
+.brandrow .bt { font-size:15.5px; font-weight:650; letter-spacing:-.015em; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.brandrow button.icon { width:32px; min-height:32px; }
+.newchat { width:100%; justify-content:flex-start; min-height:42px; border-radius:12px; background:var(--surface); border:1px solid var(--line-2); color:var(--ink); font-weight:600; padding:0 14px; box-shadow:var(--shadow); }
+.newchat:hover:not(:disabled) { background:var(--brand-bg); border-color:color-mix(in srgb, var(--brand) 40%, transparent); color:var(--brand); }
+.searchbox input { border-radius:12px; background:var(--surface); min-height:38px; }
+.tabs { gap:2px; } .tabs button { min-height:28px; font-size:12.5px; padding:0 9px; }
+.list { padding:4px 8px 16px; }
+.grp { font-size:11.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); padding:14px 10px 6px; }
+.conv { display:block; width:100%; padding:9px 10px; border:0; border-left:0; border-radius:10px; margin:1px 0; min-height:0; background:none; box-shadow:none; text-align:left; font-weight:400; position:relative; }
+.conv:hover { background:var(--soft); } .conv[aria-current="true"] { background:var(--brand-bg); }
+.conv .ct { display:block; font-size:14px; font-weight:550; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:18px; }
+.conv .cm { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--ink-3); margin-top:1px; }
+.conv[aria-current="true"] .ct { color:var(--brand); }
+.conv .cdot { position:absolute; right:10px; top:14px; width:8px; height:8px; border-radius:50%; background:var(--ink-3); }
+.conv .cdot.ok { background:var(--go); } .conv .cdot.warn { background:var(--warn); } .conv .cdot.bad { background:var(--bad); } .conv .cdot.team { background:var(--teamc); } .conv .cdot.info { background:var(--brand-solid); }
+.conv .cdot.pulse { animation:pulse 1.4s ease-in-out infinite; } @keyframes pulse { 50% { opacity:.3; } }
+.conv .late { color:var(--bad); font-weight:600; }
+.conv .del { position:absolute; right:6px; top:7px; width:26px; height:26px; padding:0; min-height:0; display:none; align-items:center; justify-content:center; border:0; border-radius:8px; background:var(--soft); color:var(--ink-3); box-shadow:none; cursor:pointer; }
+.conv:hover .del, .conv:focus-within .del { display:inline-flex; } .conv:hover .cdot, .conv:focus-within .cdot { display:none; }
+.conv .del:hover, .conv .del:focus-visible { color:var(--bad); }
+.rail { padding-top:14px; } .rail .logo { width:34px; height:34px; border-radius:10px; background:var(--brand-solid); color:#fff; display:flex; align-items:center; justify-content:center; } .rail .logo svg.i { width:18px; height:18px; }
+
+/* the conversation: one centred column */
+.thread { background:var(--surface); position:relative; }
+.thead { min-height:56px; padding:8px 20px; border-bottom:1px solid var(--line); background:var(--surface); gap:10px; }
+.thead .avatar { display:none; } .thead h2 { font-size:15px; font-weight:650; } .thead .sub { font-size:12.5px; }
+.thead .seg button { min-height:30px; padding:0 12px; font-size:13px; } .thead .seg button[aria-selected="true"] { background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(16,24,40,.14); }
+.thead > button { min-height:34px; }
+.banner { border-bottom:0; margin:10px auto 0; width:calc(100% - 40px); max-width:var(--col); border-radius:12px; border:1px solid; }
+.mwrap { position:relative; flex:1; min-height:0; display:flex; }
+.msgs { flex:1; background:var(--surface); padding:26px 20px 12px; gap:22px; align-items:center; }
+.msgs > * { width:100%; max-width:var(--col); }
+.day { align-self:center; background:none; color:var(--ink-3); font-size:12px; padding:0; width:auto; }
+.msg { align-self:center; max-width:var(--col); width:100%; gap:14px; }
+.msg.mine { flex-direction:row; justify-content:flex-end; }
+.msg.mine .bub { background:var(--soft); border:0; color:var(--ink); border-radius:20px 20px 6px 20px; padding:10px 16px; box-shadow:none; max-width:82%; width:auto; }
+.msg.mine .body a { color:var(--brand); }
+.msg.agent .bub, .msg.team .bub { background:none; border:0; box-shadow:none; padding:2px 0 0; flex:1; min-width:0; }
+.msg.agent .bub { border-left:0; }
+.msg.team .bub { border:1px solid var(--line); border-left:3px solid var(--teamc); border-radius:12px; padding:10px 14px; background:var(--sunken); }
+.msg .avatar { width:30px; height:30px; flex:none; margin-top:1px; } .msg .avatar svg.i { width:16px; height:16px; }
+.meta { margin-bottom:3px; } .msg.agent .meta { display:none; } .msg.mine .meta { display:none; }
+.msg .body { font-size:15.5px; line-height:1.7; color:var(--ink); } .msg.mine .body p { margin:0; line-height:1.55; }
+.body p { margin:0 0 10px; } .body p:last-child { margin-bottom:0; } .body h4 { font-size:15.5px; margin:16px 0 6px; } .body h4:first-child { margin-top:0; } .body ul { margin:6px 0 10px; padding-left:22px; } .body li { margin:3px 0; }
+.acts { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:12px; }
+.acts > button { min-height:30px; padding:0 10px; font-size:12.5px; border-radius:99px; background:none; border:1px solid var(--line-2); color:var(--ink-2); box-shadow:none; }
+.acts > button:hover:not(:disabled) { background:var(--soft); } .acts svg.i { width:14px; height:14px; }
+.acts .copy { order:0; } .acts .src { display:contents; } .acts .src-h { order:1; width:auto; padding:0 10px 0 8px; text-transform:none; letter-spacing:0; font-size:12.5px; font-weight:600; color:var(--ink-2); }
+.acts .src-h .cnt { background:var(--brand-bg); color:var(--brand); }
+.acts .conf { order:2; margin:0 0 0 auto; font-size:12px; color:var(--ink-3); } .acts .src-b { order:3; flex-basis:100%; }
+.acts .src-b { display:flex; flex-direction:column; gap:6px; padding-top:6px; } .acts .src.closed .src-b { display:none; }
+.srow { background:var(--sunken); border:1px solid var(--line); border-radius:10px; padding:8px 12px; margin:0; }
+.disc { margin-top:10px; font-size:12.5px; } .handoff { border-radius:12px; margin-top:12px; }
+.msg.sys { max-width:var(--col); } .sys-note { margin:0 auto; }
+.typing { align-self:center; width:100%; max-width:var(--col); gap:14px; align-items:flex-start; }
+.typing .avatar { width:30px; height:30px; } .typing .bub { background:none; border:0; box-shadow:none; padding:4px 0; flex-direction:row; align-items:center; gap:10px; }
+.typing .step { color:var(--ink-3); font-size:14px; background:linear-gradient(90deg, var(--ink-3), var(--ink), var(--ink-3)); background-size:200% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:sheen 1.8s linear infinite; }
+@keyframes sheen { to { background-position:-200% 0; } } @media (prefers-reduced-motion: reduce) { .typing .step { animation:none; color:var(--ink-3); background:none; } .conv .cdot.pulse { animation:none; } }
+.jump { position:absolute; left:50%; bottom:10px; transform:translateX(-50%); width:36px; min-height:36px; padding:0; border-radius:50%; box-shadow:0 4px 14px rgba(16,24,40,.18); display:none; z-index:4; }
+.jump.show { display:inline-flex; } .jump svg.i { transform:rotate(-90deg); }
+
+/* the message box: a floating rounded field, send inside it */
+.composer { background:var(--surface); border-top:0; padding:6px 20px 14px; display:flex; flex-direction:column; align-items:center; }
+.composer .box { width:100%; max-width:var(--col); display:flex; align-items:flex-end; gap:8px; background:var(--surface); border:1px solid var(--line-2); border-radius:26px; padding:8px 8px 8px 18px; box-shadow:0 2px 10px rgba(16,24,40,.07); }
+.composer .box:focus-within { border-color:var(--brand); box-shadow:0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent), 0 2px 10px rgba(16,24,40,.07); }
+.composer textarea { border:0; outline:0; box-shadow:none; background:none; padding:8px 0; min-height:28px; max-height:200px; font-size:15.5px; resize:none; flex:1; }
+.composer textarea:focus { outline:0; box-shadow:none; }
+.composer #sendbtn { width:38px; min-height:38px; height:38px; padding:0; border-radius:50%; flex:none; } .composer #sendbtn .t { display:none; } .composer #sendbtn svg.i { width:18px; height:18px; margin:0; }
+.composer .hint { max-width:var(--col); width:100%; justify-content:center; font-size:12px; text-align:center; }
+
+/* the first screen: a greeting, the message box, and a few starting points */
+.welcome { margin:0 auto; max-width:var(--col); width:100%; padding:0 20px; text-align:center; }
+.landing { flex:1; overflow-y:auto; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:24px 0 40px; background:var(--surface); }
+.landing h2 { font-size:28px; font-weight:650; letter-spacing:-.02em; margin:0 0 6px; } .landing .lede { color:var(--ink-3); margin:0 0 26px; font-size:15.5px; }
+.landing .logo { width:48px; height:48px; border-radius:14px; background:var(--brand-solid); color:#fff; display:inline-flex; align-items:center; justify-content:center; margin-bottom:16px; } .landing .logo svg.i { width:26px; height:26px; }
+.landing .composer { padding:0 20px 0; width:100%; } .landing .composer .box { box-shadow:0 4px 18px rgba(16,24,40,.09); }
+.landing .chips { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:22px 20px 0; width:calc(100% - 40px); max-width:var(--col); }
+.landing .chips button { align-items:flex-start; text-align:left; justify-content:flex-start; flex-direction:column; gap:6px; min-height:0; height:auto; padding:12px 14px; border-radius:14px; font-weight:500; font-size:14px; line-height:1.4; background:var(--surface); box-shadow:none; }
+.landing .chips button:hover:not(:disabled) { background:var(--sunken); border-color:var(--brand); } .landing .chips svg.i { color:var(--brand); width:16px; height:16px; }
+
+/* the Details tab keeps the same column */
+.dpane { background:var(--surface); } .dsec { box-shadow:none; }
+
+@media (max-width:820px) {
+  .app { height:100dvh; } .msgs { padding:18px 14px 8px; gap:18px; } .composer { padding:4px 12px 10px; } .msg.mine .bub { max-width:90%; }
+  .landing h2 { font-size:23px; } .landing .chips { grid-template-columns:1fr; } .thead { padding:8px 12px; } .thead .seg button { padding:0 9px; }
+  .banner { width:calc(100% - 24px); } .brandrow .collapse-btn { display:none; }
+  /* phone header: back, a title that can wrap, then status and the tab switch on their own row */
+  /* two rows: [back  title and who] then [status ... Chat/Details  resolve] */
+  .thead { display:grid !important; grid-template-columns:38px minmax(0,1fr) auto auto; gap:8px 8px; align-items:center; padding:8px 12px; }
+  .thead .backlink { grid-column:1; grid-row:1; } .thead > div:nth-of-type(1) { grid-column:2 / -1; grid-row:1; min-width:0; }
+  .thead h2 { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .thead > .sb { grid-column:1 / 3; grid-row:2; justify-self:start; margin-left:46px; } .thead .seg { grid-column:3; grid-row:2; }
+  a.icon { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; color:inherit; }
+  #teamslink[hidden] { display:none; }
+  .thead [data-t="resolve"] { grid-column:4; grid-row:2; width:38px; padding:0; } .thead .hide-s { display:none; }
+}
+</style>
+</head>
+<body>
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-checkc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m10.3 3.9-8.5 14.7A2 2 0 0 0 3.5 21.5h17a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v6h6"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
+  <symbol id="i-refresh"viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></symbol>
+  <symbol id="i-chevr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-chevd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-max" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M16 3h3a2 2 0 0 1 2 2V8"/><path d="M21 16V19a2 2 0 0 1-2 2h-3"/><path d="M8 21H5a2 2 0 0 1-2-2V16"/></symbol>
+  <symbol id="i-min" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3V6a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V6"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/><path d="M3 16h3a2 2 0 0 1 2 2V21"/></symbol>
+  <symbol id="i-teams" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="12" height="12" rx="2"/><path d="M5.5 10h5"/><path d="M8 10v5"/><circle cx="17.5" cy="7" r="2.2"/><path d="M15 12h5a2 2 0 0 1 2 2l0 3a2 2 0 0 1-2 2h-3"/></symbol>
+  <symbol id="i-mail"viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
+</svg>
+
+<!-- HIDDEN (moved into the sidebar, not removed): the top bar. The brand now sits at the top of the chat list.
+<header class="top">
+  <div class="brand"><span class="logo"><svg class="i"><use href="#i-spark"/></svg></span><span class="bt">Knowledge Agent</span><span class="crumb">· Chat</span></div>
+  <span class="spacer"></span>
+  (the Data user / Kroger Data Team switch, the name box and the Review console link stay commented out here)
+</header>
+-->
+
+<div class="app" id="app">
+  <section class="col convs" id="convs" aria-label="Conversations">
+    <div class="rail" id="rail" aria-label="Chats, collapsed"></div>
+    <div class="colhead">
+      <div class="brandrow"><span class="logo"><svg class="i"><use href="#i-spark"/></svg></span><span class="bt">Knowledge Agent</span>
+        <!-- HIDDEN (Teams link): <a class="icon ghost" id="teamslink" href="#" target="_blank" rel="noopener noreferrer" hidden title="Post a request in Teams (Kroger -POC- Sharepoint)" aria-label="Post a request in Teams, Kroger -POC- Sharepoint channel"><svg class="i"><use href="#i-teams"/></svg></a> -->
+        <button class="icon ghost" id="reload" type="button" data-tip="Refresh" title="Refresh" aria-label="Refresh the list"><svg class="i"><use href="#i-refresh"/></svg></button>
+        <button class="icon ghost" id="clearall" type="button" data-tip="Delete all chats" title="Delete all chats" aria-label="Delete all chats"><svg class="i"><use href="#i-trash"/></svg></button>
+        <button class="icon ghost collapse-btn" id="collapselist" type="button" title="Collapse the sidebar  ( [ )" aria-label="Collapse the sidebar" aria-expanded="true" aria-controls="list"><svg class="i"><use href="#i-back"/></svg></button></div>
+      <button class="newchat" id="newchat" type="button"><svg class="i"><use href="#i-plus"/></svg>New chat</button>
+      <div class="searchbox"><svg class="i"><use href="#i-search"/></svg><label class="sr-only" for="q">Search chats</label><input id="q" type="search" placeholder="Search chats" autocomplete="off"></div>
+      <div class="tabs" id="filters" role="group" aria-label="Filter chats"></div>
+    </div>
+    <div class="list" id="list" role="list"></div>
+  </section>
+
+  <section class="col thread" id="thread" aria-label="Conversation"></section>
+  <!-- HIDDEN (moved, not removed): the details used to be this third column. They now live in the Details tab of
+       the conversation, drawn by sideHTML() in the script. Restore this line to bring the column back.
+  <aside class="col side" id="side" aria-label="Conversation details"></aside>
+  -->
+</div>
+
+<dialog id="dlg"><form id="dlgform" method="dialog"><h3 id="dlgtitle"></h3><div id="dlgbody"></div><p class="err" id="dlgerr" role="alert"></p>
+  <div class="row"><button type="button" id="dlgcancel">Cancel</button><button type="submit" class="primary" id="dlgok">OK</button></div></form></dialog>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const ic = n => `<svg class="i" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = { get(k, d) { try { const v = localStorage.getItem("kbchat." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+                set(k, v) { try { localStorage.setItem("kbchat." + k, JSON.stringify(v)); } catch {} } };
+
+// ---------------------------------------------------------------- state
+let ROLE = store.get("role", "user"), NAME = store.get("name", ""), FILTER = "all", QUERY = "";
+let LIST = [], CUR = null, CURID = new URLSearchParams(location.search).get("c") || "", WORKING = {}, STATUS = {}, LOADED = false, ERR = "", lastVersion = -1;
+const isTeam = () => ROLE === "team";
+// expand / collapse state: the chat list and the Details sections are remembered in this browser
+let TAB = store.get("tab", "chat"), LISTCOL = store.get("listcol", false), FOCUS = false, SECS = store.get("secs", {}), SRCOPEN = {};
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  return {ok: res.ok, status: res.status, data: await res.json().catch(() => ({}))};
+}
+async function job(started, onStep) {
+  if (!started.ok) return {ok: false, error: started.data.error || "Could not start"};
+  const id = started.data.job_id; let since = started.data.since ?? 0;
+  for (;;) {
+    await new Promise(r => setTimeout(r, 450));
+    const p = await api(`/api/jobs/${id}?since=${since}`);
+    if (!p.ok) return {ok: false, error: p.data.error || "Lost track of the job"};
+    since = Math.max(since, (p.data.last_seq || since) - 1);
+    const steps = p.data.steps || []; if (steps.length && onStep) onStep(steps.at(-1).text);
+    const j = p.data.job;
+    if (j.status === "done") return {ok: true, result: j.result};
+    if (j.status === "failed") return {ok: false, error: j.error || "Failed"};
+  }
+}
+
+// ---------------------------------------------------------------- formatting
+const clock = d => `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")} ${d.getHours() >= 12 ? "PM" : "AM"}`;
+function when(v) { const d = new Date(v); if (!v || isNaN(d)) return ""; const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()), diff = Math.round((day(new Date()) - day(d)) / 864e5);
+  return diff === 0 ? `Today, ${clock(d)}` : diff === 1 ? `Yesterday, ${clock(d)}` : `${d.getDate()} ${d.toLocaleString("en-US", {month: "short"})}, ${clock(d)}`; }
+function ago(v) { const d = new Date(v); if (!v || isNaN(d)) return ""; const s = Math.round((Date.now() - d) / 1000);
+  return s < 60 ? "now" : s < 3600 ? `${Math.round(s / 60)}m` : s < 86400 ? `${Math.round(s / 3600)}h` : s < 7 * 86400 ? `${Math.round(s / 86400)}d` : `${d.getDate()} ${d.toLocaleString("en-US", {month: "short"})}`; }
+const initials = n => (String(n || "?").trim().split(/\s+/).slice(0, 2).map(p => p[0] || "").join("").toUpperCase() || "?");
+const dayName = v => { const d = new Date(v), day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()), diff = Math.round((day(new Date()) - day(d)) / 864e5);
+  return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : d.toLocaleDateString("en-US", {weekday: "long", day: "numeric", month: "short"}); };
+function inline(s) { return s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+  .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>'); }
+function markdown(text) {
+  let out = "", list = false; const close = () => { if (list) { out += "</ul>"; list = false; } };
+  for (const line of esc(text || "").split("\n")) { const h = line.match(/^#{1,3}\s+(.*)/), li = line.match(/^(?:[-*]|\d+\.)\s+(.*)/);
+    if (h) { close(); out += `<h4>${inline(h[1])}</h4>`; } else if (li) { if (!list) { out += "<ul>"; list = true; } out += `<li>${inline(li[1])}</li>`; }
+    else if (!line.trim()) close(); else { close(); out += `<p>${inline(line)}</p>`; } }
+  close(); return out;
+}
+const plain = t => String(t || "").replace(/^#{1,6}\s*/gm, "").replace(/\*\*/g, "").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/^\s*[-*]\s+/gm, "").replace(/\s+/g, " ").trim();
+const sb = (cls, icon, text) => `<span class="sb ${cls}">${ic(icon)}${esc(text)}</span>`;
+const LABEL = {processing: ["info", "spark", "Working"], answered: ["ok", "checkc", "Answered"], validating: ["team", "users", "With the team"],
+  working: ["team", "users", "Team is on it"], ticket: ["warn", "ticket", "Ticket raised"], declined: ["", "x", "Declined"], resolved: ["ok", "check", "Resolved"], failed: ["bad", "alert", "Error"]};
+const statusBadge = st => { const [c, i, t] = LABEL[st] || ["", "info", st]; return sb(c, i, t); };
+
+function toast(text, kind = "ok") { const el = document.createElement("div"); el.className = "toast " + kind; el.setAttribute("role", kind === "bad" ? "alert" : "status"); el.textContent = text;
+  $("#toasts").append(el); setTimeout(() => el.remove(), kind === "bad" ? 9000 : 4500); [...$("#toasts").children].slice(0, -3).forEach(t => t.remove()); }
+function ask(o) { return new Promise(resolve => { const d = $("#dlg"), form = $("#dlgform"), ok = $("#dlgok");
+  $("#dlgtitle").textContent = o.title; $("#dlgbody").innerHTML = o.body; $("#dlgerr").textContent = ""; ok.textContent = o.ok || "OK";
+  const finish = v => { d.close(); form.onsubmit = null; resolve(v); };
+  form.onsubmit = e => { e.preventDefault(); const bad = o.check && o.check(d); if (bad) { $("#dlgerr").textContent = bad; return; } finish(true); };
+  $("#dlgcancel").onclick = () => finish(false); d.oncancel = e => { e.preventDefault(); finish(false); }; d.showModal(); (d.querySelector("textarea, input") || ok).focus(); }); }
+
+// ---------------------------------------------------------------- conversation list
+const FILTERS = [["all", "All"], ["mine", "Mine"], ["team", "With the team"], ["open", "Answered"]];
+function matches(c) {
+  if (QUERY && ![c.title, c.preview, c.requester.name].join(" ").toLowerCase().includes(QUERY.toLowerCase())) return false;
+  if (FILTER === "mine") return c.requester.name.toLowerCase() === NAME.trim().toLowerCase();
+  if (FILTER === "team") return c.needs_team || c.status === "ticket";
+  if (FILTER === "open") return ["answered", "resolved"].includes(c.status);
+  return true;
+}
+function renderFilters() {
+  const count = k => { const keep = FILTER; FILTER = k; const n = LIST.filter(matches).length; FILTER = keep; return n; };
+  $("#filters").innerHTML = FILTERS.filter(([k]) => (k !== "mine" || NAME.trim()) && (isTeam() || (k !== "team" && k !== "open"))).map(([k, label]) => `<button type="button" data-f="${k}" aria-pressed="${FILTER === k}">${label}<span class="n">${count(k)}</span></button>`).join("");
+}
+const DOT = {processing: "info", answered: "ok", validating: "team", working: "team", ticket: "warn", declined: "", resolved: "ok", failed: "bad"};
+function bucket(v) {
+  const d = new Date(v), day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()), diff = Math.round((day(new Date()) - day(d)) / 864e5);
+  return diff <= 0 ? "Today" : diff === 1 ? "Yesterday" : diff <= 7 ? "Previous 7 days" : diff <= 30 ? "Previous 30 days" : "Older";
+}
+function renderList() {
+  renderFilters(); renderRail();
+  const box = $("#list");
+  if (!LOADED) { box.innerHTML = '<div class="skel"><i></i><i></i></div>'.repeat(5); return; }
+  if (ERR) { box.innerHTML = `<div class="banner bad" role="alert" style="width:auto;margin:8px 0">${ic("alert")}<span>${esc(ERR)}</span><span class="spacer"></span><button data-retry="1">Try again</button></div>`; return; }
+  const rows = LIST.filter(matches);
+  if (!rows.length) { box.innerHTML = `<div class="empty">${LIST.length ? "No chats match." : "Your chats appear here."}</div>`; return; }
+  let html = "", last = "";
+  for (const c of rows) {
+    const g = bucket(c.updated); if (g !== last) { html += `<div class="grp">${g}</div>`; last = g; }
+    const working = !!WORKING[c.id], [, , label] = LABEL[c.status] || [0, 0, c.status];
+    const meta = [isTeam() ? c.requester.name : "", working ? "Working" : label, ago(c.updated)].filter(Boolean).map(x => esc(x));
+    html += `<button class="conv" role="listitem" data-id="${esc(c.id)}" aria-current="${c.id === CURID}" title="${esc(c.title)}"><span class="ct">${esc(c.title)}</span>
+      <span class="cm">${meta.join(" · ")}${c.late ? ` · <span class="late">${Math.round(c.waiting_hours)}h waiting</span>` : ""}</span><span class="cdot ${working ? "info pulse" : DOT[c.status] ?? ""}" aria-hidden="true"></span><span class="del" role="button" tabindex="0" data-del="${esc(c.id)}" title="Delete this chat" aria-label="Delete this chat">${ic("trash")}</span></button>`;
+  }
+  box.innerHTML = html;
+}
+
+// ---------------------------------------------------------------- thread
+function sourcesOpen(m, c) {
+  if (m.id in SRCOPEN) return SRCOPEN[m.id];
+  const last = [...c.messages].reverse().find(x => x.role === "agent" && (x.sources || []).length);
+  return !!last && last.id === m.id;
+}
+function sourcesHTML(m, c) {
+  const list = m.sources || []; if (!list.length) return "";
+  const open = sourcesOpen(m, c), id = "src-" + m.id;
+  const rows = list.map(s => `<div class="srow">${ic(s.kind === "alation" ? "book" : "file")}<a href="${esc(s.url)}" target="_blank" rel="noopener" title="${esc(s.action || s.title)}">${esc(s.title)}</a>${sb(s.kind === "alation" ? "info" : "", s.kind === "alation" ? "book" : "file", s.kind === "alation" ? "Alation" : "Confluence")}</div>`).join("");
+  return `<div class="src ${open ? "" : "closed"}"><button type="button" class="src-h" data-src="${esc(m.id)}" aria-expanded="${open}" aria-controls="${id}"><span class="chev">${ic("chevd")}</span>Sources<span class="cnt">${list.length}</span></button><div class="src-b" id="${id}">${rows}</div></div>`;
+}
+const MSGTEXT = {};
+function msgHTML(m, c) {
+  if (m.role === "system") return `<div class="msg sys"><div class="sys-note ${m.error ? "bad" : ""}">${ic(m.error ? "alert" : "info")}<span>${esc(m.text)}</span></div></div>`;
+  const mine = m.role === "user" && (isTeam() ? false : m.author.trim().toLowerCase() === (NAME.trim() || c.requester.name).toLowerCase() || !NAME.trim());
+  const kind = m.role === "agent" ? "agent" : m.role === "team" ? "team" : "";
+  MSGTEXT[m.id] = m.text;
+  const avatar = m.role === "agent" ? `<span class="avatar agent" aria-hidden="true">${ic("spark")}</span>` : m.role === "team" ? `<span class="avatar team" aria-hidden="true">${ic("users")}</span>` : `<span class="avatar" aria-hidden="true">${esc(initials(m.author))}</span>`;
+  const tag = m.role === "team" ? ` ${sb("team", "users", "Kroger Data Team")}` : "";
+  const pct = typeof m.confidence === "number" ? Math.round(m.confidence * 100) : null;
+  const acts = m.role === "agent" || m.role === "team"
+    ? `<div class="acts"><button type="button" class="copy" data-copy="${esc(m.id)}" title="Copy the answer" aria-label="Copy the answer">${ic("file")}Copy</button>${sourcesHTML(m, c)}
+        ${m.kind === "answer" && m.role === "agent" && pct != null ? `<span class="conf" title="How directly the sources answer the question">${pct}% · ${esc(m.band)} confidence</span>` : ""}</div>` : "";
+  const hand = m.kind === "handoff" ? `<div class="handoff">${ic("users")}<div>${isTeam() ? "Waiting for the Kroger Data Team." : "The Kroger Data Team has been notified. You will see their reply in this chat."}</div></div>` : "";
+  const who = m.role === "agent" ? "Knowledge Agent" : m.author;
+  return `<div class="msg ${kind} ${mine ? "mine" : ""}">${mine ? "" : avatar}<div class="bub"><div class="meta"><b>${esc(who)}</b>${tag}<span title="${esc(when(m.at))}">${esc(clock(new Date(m.at)))}</span></div>
+    <span class="sr-only">${esc(who)} said:</span><div class="body" title="${esc(when(m.at))}">${m.role === "user" ? `<p>${esc(m.text).replace(/\n/g, "<br>")}</p>` : markdown(m.text)}</div>${hand}${acts}
+    ${m.disclaimer ? `<div class="disc">${ic("info")}<span>${inline(esc(m.disclaimer))}</span></div>` : ""}</div></div>`;
+}
+const SUGGESTED = ["How do I create a catalog?", "What is the naming convention for catalogs?", "How do I set up an inbound Delta Share?", "How do I set up an outbound Delta Share?","Who owns the customer_360 schema?"];
+let SUGGESTIONS = SUGGESTED;
+function welcome() {
+  if (isTeam()) return `<div class="landing"><div class="welcome"><span class="logo">${ic("users")}</span><h2>Pick a chat to help with</h2><p class="lede">Chats the agent could not answer wait under “With the team”.</p></div></div>`;
+  return `<div class="landing"><div class="welcome"><span class="logo">${ic("spark")}</span><h2>How can I help with Unity Catalog?</h2>
+    <!-- Alation disabled: <p class="lede">Ask a question. I’ll provide answers using information from Confluence and Alation.</p> -->
+    <p class="lede">Ask a question. I’ll provide answers using information from Confluence.</p></div>
+    ${composer(true)}<div class="chips">${SUGGESTIONS.slice(0, 6).map(q => `<button type="button" data-suggest="${esc(q)}">${ic("spark")}<span>${esc(q)}</span></button>`).join("")}</div></div>`;
+}
+function composer(fresh) {
+  return `<div class="composer"><div class="box"><label class="sr-only" for="msgtext">Message</label><textarea id="msgtext" rows="1" placeholder="${fresh ? "Ask a question about Unity Catalog…" : isTeam() ? "Reply as the Kroger Data Team…" : "Ask a follow-up…"}" maxlength="4000"></textarea>
+    <button class="primary" id="sendbtn" type="button" aria-label="Send" title="Send  ( Enter )">${ic("send")}</button></div>
+    <div class="hint"><span>The agent can make mistakes. Check the linked pages before you act.</span></div></div>`;
+}
+function teamBar(c) {
+  if (!isTeam()) return "";
+  if (c.status === "validating") return `<div class="teambar"><span class="muted small" style="flex:1">${ic("users")} Step 3d: should the team take this question forward?</span><button class="danger" data-t="decline">${ic("x")}Decline</button><button class="primary" data-t="approve">${ic("check")}Approve question</button></div>`;
+  if (c.status === "working" || c.status === "ticket") return `<div class="teambar"><span class="muted small" style="flex:1">${ic("users")} Step 3e: find the answer in the Kroger Data Team Chat, then post it here.</span><button data-t="noanswer">${ic("ticket")}No answer, raise a ticket</button><button class="primary" data-t="answer">${ic("send")}Post the answer</button></div>`;
+  return "";
+}
+function banner(c) {
+  if (c.status === "failed") return `<div class="banner bad" role="alert">${ic("alert")}<span>The agent hit an error answering this.</span><span class="spacer"></span><button data-retry-chat="1">${ic("refresh")}Try again</button></div>`;
+  if ((c.problems || []).length) return `<div class="banner warn">${ic("alert")}<span>${esc(c.problems[0])} The answer may be missing information.</span></div>`;
+  if (c.status === "validating" || c.status === "working") return `<div class="banner info">${ic("users")}<span>${isTeam() ? "This chat needs the Kroger Data Team." : "With the Kroger Data Team. They will reply here."}${c.late ? ` Waiting ${Math.round(c.waiting_hours)}h.` : ""}</span></div>`;
+  if (c.status === "ticket") return `<div class="banner info">${ic("ticket")}<span>A ticket has been raised${c.ticket ? ` (${esc(c.ticket)})` : ""}. This chat will be updated.</span></div>`;
+  if (c.status === "declined") return `<div class="banner info">${ic("info")}<span>The Kroger Data Team did not take this question forward.</span></div>`;
+  return "";
+}
+function threadHead(c) {
+  return `<div class="thead"><button class="ghost icon backlink" data-back="1" aria-label="Back to chats">${ic("back")}</button>
+      <div style="min-width:0;flex:1"><h2>${esc(c.title)}</h2><div class="sub">${/* HIDDEN (login name): esc(c.requester.name) + " · " + */ ""}${esc(when(c.created))}</div></div>
+      ${WORKING[c.id] ? sb("info", "spark", "Working") : statusBadge(c.status)}
+      <div class="seg" role="tablist" aria-label="Conversation"><button role="tab" type="button" data-tab="chat" aria-selected="${TAB === "chat"}" title="The conversation  ( ] switches )">Chat</button><button role="tab" type="button" data-tab="details" aria-selected="${TAB === "details"}" title="Summary, workflow and why  ( ] switches )">Details</button></div>
+      ${/* HIDDEN (Resolve button): !isTeam() && !["processing"].includes(c.status) && c.status !== "resolved" ? `<button data-t="resolve" title="Mark this chat as resolved">${ic("check")}<span class="hide-s">Resolve</span></button>` : "" */ ""}
+      <button class="ghost icon focusbtn" data-focus="1" type="button" aria-pressed="${FOCUS}" title="${FOCUS ? "Exit full width  ( Esc )" : "Expand the conversation to the full width  ( f )"}" aria-label="${FOCUS ? "Exit full width" : "Expand the conversation to the full width"}">${ic(FOCUS ? "min" : "max")}</button></div>`;
+}
+function renderThread(keepScroll) {
+  const box = $("#thread");
+  if (!CURID || (!CUR && LOADED && !CURID)) { box.innerHTML = welcome(); wire(); return; }
+  if (!CUR) { box.innerHTML = '<div class="msgs"><div class="skel"><i></i><i></i></div></div>'; return; }
+  const c = CUR;
+  if (TAB === "details") {                                   // the details live here, so the chat itself stays clean
+    const keep = $("#dpane") ? $("#dpane").scrollTop : 0;
+    box.innerHTML = threadHead(c) + `<div class="dpane" id="dpane">${sideHTML(c)}</div>`;
+    wire(); if ($("#dpane")) $("#dpane").scrollTop = keepScroll ? keep : 0; return;
+  }
+  const prev = $(".msgs"), atBottom = !prev || prev.scrollHeight - prev.scrollTop - prev.clientHeight < 80, top = prev ? prev.scrollTop : 0;
+  let last = "", body = "";
+  for (const m of c.messages) { const d = dayName(m.at); if (d !== last) { body += `<div class="day">${esc(d)}</div>`; last = d; } body += msgHTML(m, c); }
+  if (WORKING[c.id]) body += `<div class="typing"><span class="avatar agent" aria-hidden="true">${ic("spark")}</span><div class="bub"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="step" role="status">${esc(WORKING[c.id])}</span></div></div>`;
+  const canType = isTeam() ? true : !["processing"].includes(c.status) && !WORKING[c.id];
+  box.innerHTML = threadHead(c) + `${banner(c)}<div class="mwrap"><div class="msgs" id="msgs">${body}</div><button class="jump" id="jump" type="button" aria-label="Scroll to the latest message" title="Latest message">${ic("chevr")}</button></div>${teamBar(c)}${canType ? composer(false) : ""}`;
+  wire();
+  const m = $("#msgs"); if (m) m.scrollTop = atBottom || !keepScroll ? m.scrollHeight : top;
+}
+function secHTML(id, icon, title, body, meta = "") {
+  const open = SECS[id] !== false;
+  return `<section class="dsec ${open ? "" : "closed"}"><button type="button" class="dsec-h" data-sec="${id}" aria-expanded="${open}" aria-controls="dsec-${id}"><span class="chev">${ic("chevd")}</span>${ic(icon)}<span class="tt">${title}</span>${meta ? `<span class="meta">${meta}</span>` : ""}</button><div class="dsec-b" id="dsec-${id}">${body}</div></section>`;
+}
+// The old side panel, now the body of the Details tab: three-column layout gone, same content.
+function sideHTML(c) {
+  const s = c.summary || {}, route = c.route;
+  const tl = [...c.timeline].reverse().map(t => `<li class="${esc(t.level)}"><div class="st"><span class="n">${esc(t.step)}</span>${esc(t.label)}</div>${t.detail ? `<div class="d">${esc(t.detail)}</div>` : ""}<div class="t">${esc(when(t.at))}${t.by && t.by !== "system" ? " · " + esc(t.by) : ""}</div></li>`).join("");
+  const info = `<dl style="margin:0"><div class="kv"><dt>Asked by</dt><dd>${esc(c.requester.name)}</dd></div><div class="kv"><dt>Status</dt><dd>${statusBadge(c.status)}</dd></div>
+      ${c.confidence != null ? `<div class="kv"><dt>Confidence</dt><dd>${Math.round(c.confidence * 100)}% · ${esc(c.band)}</dd></div>` : ""}
+      ${c.answered_by ? `<div class="kv"><dt>Answered by</dt><dd>${c.answered_by === "team" ? "Kroger Data Team" : "Knowledge Agent"}</dd></div>` : ""}
+      ${route ? `<div class="kv"><dt>Kind</dt><dd>${route.kind === "knowledge" ? "Confluence" /* Alation disabled: "Confluence or Alation" */ : "Something else"}</dd></div>` : ""}
+      ${c.ticket ? `<div class="kv"><dt>Ticket</dt><dd>${esc(c.ticket)}</dd></div>` : ""}
+      ${c.needs_team !== undefined && c.waiting_hours ? `<div class="kv"><dt>With the team</dt><dd>${Math.round(c.waiting_hours)}h</dd></div>` : ""}</dl>`;
+  const summary = `<p style="margin:10px 0 8px;font-weight:600">${esc(s.subject)}</p>${(s.action_items || []).map(a => `<p class="small muted" style="margin:0 0 6px">Action: ${esc(a)}</p>`).join("")}<div>${(s.keywords || []).map(k => `<span class="chip">${esc(k)}</span>`).join("")}</div>`;
+  return `<div class="dtools"><button type="button" data-secall="open">${ic("chevd")}Expand all</button><button type="button" data-secall="close">${ic("chevr")}Collapse all</button></div>`
+    + secHTML("info", "info", "Chat", info, statusBadge(c.status))
+    + ((s.keywords || []).length ? secHTML("summary", "spark", "Agent summary", summary, `${s.keywords.length} keywords`) : "")
+    + (route && route.reason ? secHTML("why", "users", "Why the team", `<p class="small" style="margin:10px 0 0">${esc(route.reason)}</p>`) : "")
+    + secHTML("flow", "clock", "Workflow", `<ol class="tl" style="margin-top:12px">${tl}</ol>`, `${c.timeline.length} step${c.timeline.length === 1 ? "" : "s"}`);
+}
+function renderSide() { /* the details are drawn inside the Details tab by renderThread, nothing separate to update */ }
+
+// ---------------------------------------------------------------- expand / collapse
+const STATUS_DOT = {processing: "info", answered: "ok", validating: "team", working: "team", ticket: "warn", declined: "", resolved: "ok", failed: "bad"};
+function renderRail() {
+  const box = $("#rail"); if (!box) return;
+  const rows = LIST.filter(matches).slice(0, 16);
+  box.innerHTML = `<span class="logo" aria-hidden="true">${ic("spark")}</span><button class="icon ghost" type="button" data-rail="expand" title="Show the chat list  ( [ )" aria-label="Show the chat list">${ic("chevr")}</button>
+    <button class="icon primary" type="button" data-rail="new" title="New chat" aria-label="New chat">${ic("plus")}</button>
+    <div class="rail-list">${rows.map(c => `<button type="button" class="rail-av" data-id="${esc(c.id)}" aria-current="${c.id === CURID}" title="${esc(c.requester.name)}: ${esc(c.title)}" aria-label="${esc(c.title)}"><span class="avatar" aria-hidden="true">${esc(initials(c.requester.name))}</span><i class="dot ${STATUS_DOT[c.status] ?? ""}"></i></button>`).join("")}</div>`;
+}
+function applyLayout() {
+  $("#app").classList.toggle("listcollapsed", LISTCOL && !FOCUS);
+  $("#app").classList.toggle("focus", FOCUS); document.body.classList.toggle("focus", FOCUS);
+  const b = $("#collapselist"); if (b) { b.setAttribute("aria-expanded", String(!LISTCOL)); }
+}
+function toggleList() { LISTCOL = !LISTCOL; store.set("listcol", LISTCOL); if (FOCUS) FOCUS = false; applyLayout(); renderThread(true); }
+function setFocus(on) { FOCUS = on; applyLayout(); renderThread(true); }
+function setTab(t) { if (!CUR || t === TAB) return; TAB = t; store.set("tab", TAB); renderThread(false); }
+
+// ---------------------------------------------------------------- loading
+async function loadList() {
+  let r; try { r = await api("/api/chat/conversations"); } catch { r = {ok: false, status: 0, data: {}}; }
+  if (r.status === 404) { document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:system-ui"><h2>Chat is switched off</h2><p>Ask your administrator to set CHAT_ENABLED=true.</p><p><a href="/kb">Open the review console</a></p></div>'; return; }
+  ERR = r.ok ? "" : "Could not load the chats. The server may have stopped.";
+  if (r.ok) { LIST = r.data.items; lastVersion = r.data.version; }
+  LOADED = true; renderList();
+}
+async function loadCurrent(keepScroll) {
+  if (!CURID) { CUR = null; renderThread(); renderSide(); return; }
+  const r = await api(`/api/chat/conversations/${CURID}`);
+  if (r.ok) CUR = r.data; else if (r.status === 404) { CUR = null; CURID = ""; }
+  renderThread(keepScroll); renderSide(); renderList();
+}
+async function open(id) {
+  CURID = id; CUR = null; history.replaceState(null, "", id ? `?c=${id}` : location.pathname);
+  $("#app").classList.toggle("reading", !!id); renderList(); renderThread(); await loadCurrent(false);
+}
+async function loadStatus() { const r = await api("/api/chat/status"); if (r.ok) STATUS = r.data; }
+
+// ---------------------------------------------------------------- acting
+function myName() { return NAME.trim() || (isTeam() ? "Kroger Data Team" : "You"); }
+function track(id, started) {
+  WORKING[id] = "Understanding the question"; if (CURID === id) renderThread(true); renderList();
+  job(started, step => { WORKING[id] = step; if (CURID === id) renderThread(true); }).then(async out => {
+    delete WORKING[id]; if (!out.ok) toast(out.error || "The agent could not finish.", "bad");
+    await loadList(); if (CURID === id) await loadCurrent(true);
+  });
+}
+// UC Concierge, the suite's front door, opens /chat?q=<request>&from=concierge (canonical copy of these two functions:
+// uc-concierge-front-door/agent-patches/prefill/concierge-prefill.js).
+// --- UC Concierge hand-off
+function takeConciergeRequest(href) {
+  const url = new URL(href);
+  if (url.searchParams.get("from") !== "concierge") return null;
+  const q = (url.searchParams.get("q") || "").trim();
+  if (!q) return null;
+  url.searchParams.delete("q");
+  url.searchParams.delete("from");
+  return { q, cleanUrl: url.pathname + url.search + url.hash };
+}
+function fitRequest(q, maxLength) {
+  if (!maxLength || q.length <= maxLength) return { text: q, cut: false };
+  return { text: q.slice(0, maxLength), cut: true };
+}
+// --- end UC Concierge hand-off
+// Asks the handed-over question once, always as a new chat; the address loses q/from first, so a reload never asks again.
+function conciergeHandoff() {
+  const handoff = takeConciergeRequest(location.href);
+  if (!handoff) return;
+  history.replaceState(null, "", handoff.cleanUrl);
+  if (CURID) { CURID = ""; CUR = null; history.replaceState(null, "", location.pathname); renderThread(); renderSide(); }
+  const ta = $("#msgtext");
+  const fit = fitRequest(handoff.q, Number(ta?.getAttribute("maxlength")) || 4000);
+  toast(fit.cut ? "From UC Concierge. Your question was shortened to fit; check it, then send." : "From UC Concierge");
+  if (fit.cut) { if (ta) { ta.value = fit.text; ta.focus(); } return; }
+  send(fit.text);
+}
+async function send(textArg) {
+  const ta = $("#msgtext"), text = (textArg ?? ta?.value ?? "").trim(); if (!text) return;
+  if (ta) { ta.value = ""; ta.style.height = ""; }
+  const who = {name: NAME.trim() || "", as: isTeam() ? "team" : "user"};
+  if (!CURID) {
+    const r = await api("/api/chat/conversations", {text, ...who}); if (!r.ok) { toast(r.data.error || "Could not start the chat.", "bad"); if (ta) ta.value = text; return; }
+    CURID = r.data.conversation.id; CUR = r.data.conversation; history.replaceState(null, "", `?c=${CURID}`); $("#app").classList.add("reading");
+    track(CURID, r); await loadList(); renderThread(); renderSide(); return;
+  }
+  const r = await api(`/api/chat/conversations/${CURID}/messages`, {text, ...who});
+  if (!r.ok) { toast(r.data.error || "Could not send.", "bad"); if (ta) ta.value = text; return; }
+  CUR = r.data.conversation || CUR; renderThread(false); renderSide();
+  if (r.status === 202) track(CURID, r); else loadList();
+}
+async function team(action) {
+  const name = NAME.trim();
+  if (!name) { toast("Enter your name at the top first, so the chat shows who is helping.", "bad"); $("#myname").focus(); return; }
+  const base = `/api/chat/conversations/${CURID}`;
+  if (action === "resolve") { const r = await api(base + "/resolve", {name}); if (!r.ok) return toast(r.data.error || "Could not resolve.", "bad"); toast("Marked as resolved."); CUR = r.data.conversation; renderThread(true); renderSide(); return loadList(); }
+  if (action === "approve") { const r = await api(base + "/validate", {approve: true, as: "team", name}); if (!r.ok) return toast(r.data.error, "bad"); toast("Question approved."); CUR = r.data.conversation; renderThread(false); renderSide(); return loadList(); }
+  if (action === "decline") {
+    if (!await ask({title: "Decline this question?", ok: "Decline", body: '<label>Reply to the person <small class="muted">they see this in the chat</small><textarea id="dn" rows="3" placeholder="e.g. This one belongs to the platform team."></textarea></label>'})) return;
+    const r = await api(base + "/validate", {approve: false, note: $("#dn").value.trim(), as: "team", name}); if (!r.ok) return toast(r.data.error, "bad");
+    CUR = r.data.conversation; renderThread(false); renderSide(); return loadList();
+  }
+  const found = action === "answer";
+  if (!await ask({title: found ? "Post the answer" : "No answer yet", ok: found ? "Post to the chat" : "Raise a ticket",
+    body: found ? '<label>Answer <small class="muted">shown to the person as the Kroger Data Team</small><textarea id="an" rows="6" placeholder="Write the answer. Markdown works: **bold**, - bullets, [text](url)."></textarea></label>'
+      : '<p class="muted">The person is told the team has no answer yet. Agent and team are emailed about the ticket.</p><label>Ticket <small class="muted">optional, e.g. JIRA-123</small><input id="tk" type="text"></label>',
+    check: d => found && !d.querySelector("#an").value.trim() ? "Write the answer first." : ""})) return;
+  const r = await api(base + "/answer", {found, text: found ? $("#an").value : "", ticket: found ? "" : $("#tk").value.trim(), as: "team", name});
+  if (!r.ok) return toast(r.data.error, "bad");
+  WORKING[CURID] = found ? "Posting the answer" : "Raising the ticket"; renderThread(true);
+  const id = CURID, out = await job(r, step => { WORKING[id] = step; if (CURID === id) renderThread(true); }); delete WORKING[id];
+  if (!out.ok) toast(out.error, "bad"); else toast(found ? "Answer posted." : "Ticket noted.");
+  await loadList(); if (CURID === id) await loadCurrent(true);
+}
+function wire() {
+  const ta = $("#msgtext"), ms = $("#msgs"), jb = $("#jump");
+  if (ms && jb) { const upd = () => jb.classList.toggle("show", ms.scrollHeight - ms.scrollTop - ms.clientHeight > 160); ms.onscroll = upd; upd();
+    jb.onclick = () => ms.scrollTo({top: ms.scrollHeight, behavior: "smooth"}); }
+  if (ta && !CURID && matchMedia("(min-width:821px)").matches) setTimeout(() => ta.focus(), 0);
+  if (ta) { ta.oninput = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 160) + "px"; };
+    ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } }; }
+}
+
+// ---------------------------------------------------------------- events
+$("#thread").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.id === "sendbtn") return send();
+  if (b.dataset.suggest) return send(b.dataset.suggest);
+  if (b.dataset.back) { $("#app").classList.remove("reading"); return; }
+  if (b.dataset.t) return team(b.dataset.t);
+  if (b.dataset.retryChat) { const r = await api(`/api/chat/conversations/${CURID}/retry`, {}); if (!r.ok) return toast(r.data.error, "bad"); CUR = r.data.conversation; track(CURID, r); }
+});
+function dropped(ids) {
+  for (const id of ids) delete WORKING[id];
+  if (CURID && ids.includes(CURID)) { CURID = ""; CUR = null; history.replaceState(null, "", location.pathname); renderThread(); renderSide(); }
+}
+async function deleteChat(id) {
+  const c = LIST.find(x => x.id === id);
+  if (!confirm(`Delete this chat?\n\n${c ? c.title : id}\n\nThis cannot be undone.`)) return;
+  const r = await api(`/api/chat/conversations/${id}/delete`, {});
+  if (!r.ok && r.status !== 404) return toast(r.data.error || "Could not delete the chat.", "bad");
+  dropped([id]); await loadList(); toast("Chat deleted.");
+}
+$("#list").addEventListener("click", e => {
+  const d = e.target.closest("[data-del]"); if (d) { e.stopPropagation(); return deleteChat(d.dataset.del); }
+  const c = e.target.closest(".conv"); if (c) open(c.dataset.id); if (e.target.closest("[data-retry]")) loadList();
+});
+$("#list").addEventListener("keydown", e => { const d = e.target.closest("[data-del]"); if (d && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); deleteChat(d.dataset.del); } });
+$("#clearall").addEventListener("click", async () => {
+  if (!LIST.length) return toast("There are no chats to delete.");
+  if (!confirm(`Delete all ${LIST.length} chat(s)?\n\nThis cannot be undone.`)) return;
+  const r = await api("/api/chat/clear", {});
+  if (!r.ok) return toast(r.data.error || "Could not delete the chats.", "bad");
+  dropped(LIST.map(x => x.id)); await loadList(); toast("All chats deleted.");
+});
+$("#filters").addEventListener("click", e => { const b = e.target.closest("[data-f]"); if (b) { FILTER = b.dataset.f; renderList(); } });
+$("#q").addEventListener("input", e => { QUERY = e.target.value; renderList(); });
+$("#newchat").addEventListener("click", () => { CURID = ""; CUR = null; history.replaceState(null, "", location.pathname); $("#app").classList.add("reading"); renderList(); renderThread(); renderSide(); $("#msgtext")?.focus(); });
+$("#reload").addEventListener("click", async () => { await loadList(); await loadStatus(); if (CURID) await loadCurrent(true); toast("Up to date."); });
+// HIDDEN (the switch and the name box are commented out in the header above):
+// $("#roleseg").addEventListener("click", e => { const b = e.target.closest("[data-role]"); if (!b) return; ROLE = b.dataset.role; store.set("role", ROLE); applyRole(); });
+// $("#myname").addEventListener("input", e => { NAME = e.target.value; store.set("name", NAME); renderFilters(); });
+function applyRole() {
+  document.querySelectorAll("#roleseg [data-role]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.role === ROLE)));
+  $("#newchat").classList.toggle("hidden", isTeam()); FILTER = isTeam() ? "team" : "all";
+  if (isTeam() && !CURID) { $("#app").classList.remove("reading"); } renderList(); renderThread(true); renderSide();
+}
+$("#thread").addEventListener("click", async e => {
+  const b = e.target.closest("[data-copy]"); if (!b) return;
+  try { await navigator.clipboard.writeText(plain(MSGTEXT[b.dataset.copy] || "")); b.innerHTML = `${ic("check")}Copied`; setTimeout(() => { b.innerHTML = `${ic("file")}Copy`; }, 1800); }
+  catch { toast("Could not copy. Select the text and copy it.", "bad"); }
+});
+// expand / collapse: panels, sections, sources, the tabs and their keys
+$("#collapselist").addEventListener("click", toggleList);
+$("#rail").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.rail === "expand") return toggleList();
+  if (b.dataset.rail === "new") { LISTCOL = false; store.set("listcol", false); applyLayout(); return $("#newchat").click(); }
+  if (b.dataset.id) open(b.dataset.id);
+});
+$("#thread").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.tab) return setTab(b.dataset.tab);
+  if (b.dataset.focus) return setFocus(!FOCUS);
+  if (b.dataset.src) {
+    const box = b.closest(".src"), open = box.classList.contains("closed");
+    box.classList.toggle("closed", !open); b.setAttribute("aria-expanded", String(open)); SRCOPEN[b.dataset.src] = open; return;
+  }
+  if (b.dataset.sec) {
+    const box = b.closest(".dsec"), open = box.classList.contains("closed");
+    box.classList.toggle("closed", !open); b.setAttribute("aria-expanded", String(open)); SECS[b.dataset.sec] = open; store.set("secs", SECS); return;
+  }
+  if (b.dataset.secall) {
+    const open = b.dataset.secall === "open";
+    document.querySelectorAll(".dsec").forEach(box => { const h = box.querySelector(".dsec-h"); box.classList.toggle("closed", !open); h.setAttribute("aria-expanded", String(open)); SECS[h.dataset.sec] = open; });
+    store.set("secs", SECS);
+  }
+});
+document.addEventListener("keydown", e => {
+  if ($("#dlg").open) return;
+  if (e.key === "Escape" && FOCUS) { setFocus(false); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target; if (t && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
+  if (e.key === "[") toggleList();
+  else if (e.key === "]") setTab(TAB === "chat" ? "details" : "chat");
+  else if (e.key.toLowerCase() === "f") setFocus(!FOCUS);
+});
+// keep the page current: only re-read when something changed on the server, never while the person is typing
+setInterval(async () => {
+  const r = await api("/api/chat/status"); if (!r.ok) return; STATUS = r.data;
+  if (r.data.version !== lastVersion) { const typing = document.activeElement && document.activeElement.id === "msgtext" && document.activeElement.value;
+    await loadList(); if (CURID && !typing && !WORKING[CURID]) await loadCurrent(true); }
+}, 3000);
+
+// ---------------------------------------------------------------- Teams link (post a request in the channel)
+function setTeamsLink(l) {
+  const a = $("#teamslink"); if (!a || !l || !l.url) return false;
+  a.href = l.url; a.hidden = false;
+  if (l.name) { a.title = `Post a request in Teams (${l.name})`; a.setAttribute("aria-label", `Post a request in Teams, ${l.name} channel`); }
+  return true;
+}
+async function showTeamsLink() {
+  try {
+    const r = await api("/api/chat/teams-link");
+    if (r.ok && setTeamsLink(r.data)) return;
+    const s = await api("/api/chat/teams-link", {});          // ask Graph once; the server remembers the answer
+    if (!s.ok) return;
+    const j = await job(s); if (j.ok) setTeamsLink(j.result);
+  } catch (e) { /* no link: the icon stays hidden */ }
+}
+
+// ---------------------------------------------------------------- start
+// HIDDEN (name box): $("#myname").value = NAME;
+// With the switch hidden the page is always the Data user view, even if this browser once saved the team view.
+ROLE = "user";
+(async () => {
+  const s = await api("/api/chat/suggestions"); if (s.ok && s.data.questions.length) SUGGESTIONS = s.data.questions;
+  // HIDDEN (Teams link): showTeamsLink();
+  applyLayout();
+  await loadStatus(); await loadList(); applyRole();
+  if (CURID) { $("#app").classList.add("reading"); await loadCurrent(false); } else { renderThread(); renderSide(); }
+  conciergeHandoff();
+})();
+</script>
+</body>
+</html>

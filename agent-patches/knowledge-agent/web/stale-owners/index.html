@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stale owners · Ownership Audit</title>
+<style>
+:root {
+  --bg:#f3f5f8; --surface:#fff; --surface-2:#f8fafc; --ink:#121417; --ink-2:#3f4854; --ink-3:#5f6876; --line:#e1e5eb;
+  --line-2:#cfd6df; --brand:#084282; --brand-ink:#fff; --brand-soft:#e7eef8; --go:#1d7a47; --go-soft:#e3f1e8;
+  --warn:#8a5a00; --warn-soft:#fbf1dc; --bad:#b3372f; --bad-soft:#fbe5e3; --pend:#5f6876; --pend-soft:#eceff3;
+  --mark:#fff0a8; --focus:#2f6fd6; --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+  --shadow-lg:0 12px 32px rgba(16,24,40,.18); --radius:12px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0d1219; --surface:#151c26; --surface-2:#18212c; --ink:#e8edf4; --ink-2:#b6c0cd; --ink-3:#8f9aa9; --line:#243040;
+  --line-2:#33425a; --brand:#7ea6e6; --brand-ink:#0d1219; --brand-soft:#1a2738; --go:#6fcf98; --go-soft:#16291f;
+  --warn:#eab35e; --warn-soft:#2c2414; --bad:#f0928a; --bad-soft:#2f1a19; --pend:#a3adbb; --pend-soft:#1f2732;
+  --mark:#5a4a12; --focus:#8db4ff; --shadow:none; --shadow-lg:0 12px 32px rgba(0,0,0,.5); color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#0d1219; --surface:#151c26; --surface-2:#18212c; --ink:#e8edf4; --ink-2:#b6c0cd; --ink-3:#8f9aa9; --line:#243040;
+  --line-2:#33425a; --brand:#7ea6e6; --brand-ink:#0d1219; --brand-soft:#1a2738; --go:#6fcf98; --go-soft:#16291f;
+  --warn:#eab35e; --warn-soft:#2c2414; --bad:#f0928a; --bad-soft:#2f1a19; --pend:#a3adbb; --pend-soft:#1f2732;
+  --mark:#5a4a12; --focus:#8db4ff; --shadow:none; --shadow-lg:0 12px 32px rgba(0,0,0,.5); color-scheme:dark; }
+
+* { box-sizing:border-box; }
+html { font-family:"Segoe UI", system-ui, -apple-system, sans-serif; font-size:14.5px; color:var(--ink); background:var(--bg); }
+body { margin:0; min-height:100vh; }
+button, input, select { font:inherit; color:inherit; }
+a { color:var(--brand); }
+:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+[hidden] { display:none !important; }
+.sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.num { font-variant-numeric:tabular-nums; }
+svg.i { width:16px; height:16px; flex:none; vertical-align:-3px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+@keyframes pulse { 50% { opacity:.35; } }
+
+/* page header */
+header.top { background:#084282; color:#fff; }
+header.top .in { max-width:1180px; margin:0 auto; padding:10px 20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.brand { display:flex; align-items:center; gap:10px; min-width:0; }
+.logo { width:34px; height:34px; border-radius:9px; background:rgba(255,255,255,.14); display:grid; place-items:center; }
+.brand h1 { font-size:17px; margin:0; font-weight:650; letter-spacing:.01em; }
+.brand p { margin:0; font-size:12.5px; color:#c4d6ef; }
+.spacer { flex:1; }
+.chips { display:flex; gap:6px; flex-wrap:wrap; }
+.hchip { display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:99px; border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.08); color:#fff; font-size:13px; }
+.hchip .d { width:8px; height:8px; border-radius:50%; background:#9fb3cc; }
+.hchip.ok .d { background:#5fd08f; } .hchip.bad .d { background:#ff8a80; } .hchip.checking .d { animation:pulse 1.1s infinite; }
+.iconbtn { background:none; border:1px solid transparent; color:#fff; border-radius:8px; padding:5px 7px; cursor:pointer; display:inline-flex; }
+.iconbtn:hover { background:rgba(255,255,255,.12); }
+
+main { max-width:1180px; margin:0 auto; padding:24px 20px 56px; }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); }
+.banner { padding:11px 14px; border-radius:var(--radius); margin-bottom:16px; border:1px solid var(--line-2); background:var(--warn-soft); }
+.banner.bad { background:var(--bad-soft); }
+
+/* title row */
+.head { display:flex; align-items:flex-end; gap:12px 18px; flex-wrap:wrap; margin-bottom:16px; }
+.head h2 { margin:0; font-size:24px; letter-spacing:-.01em; }
+.head p { margin:3px 0 0; color:var(--ink-3); max-width:60ch; }
+.stamp { margin-left:auto; display:flex; align-items:center; gap:4px; color:var(--ink-3); font-size:13px; position:relative; }
+.qb { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:7px; padding:7px 11px; border-radius:8px; color:var(--ink-2); font-size:14px; }
+.qb:hover { background:var(--pend-soft); } .qb[disabled] { opacity:.5; cursor:default; } .qb:focus-visible { outline:2px solid var(--focus); }
+.pop { position:absolute; top:calc(100% + 8px); right:0; z-index:30; width:min(380px, 90vw); padding:14px 16px; font-size:13px; line-height:1.55; color:var(--ink-2); text-align:left; }
+.pop h3 { margin:0 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); } .pop p { margin:0 0 10px; } .pop p:last-child { margin:0; }
+.card.pop { box-shadow:var(--shadow-lg); }
+
+/* toolbar */
+.bar { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; margin-bottom:10px; }
+.sbox { position:relative; flex:1 1 440px; min-width:260px; max-width:680px; }
+.cbox { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 10px 6px 38px; min-height:46px; border:1px solid var(--line-2); border-radius:11px; background:var(--surface); cursor:text; box-shadow:var(--shadow); }
+.cbox:focus-within { border-color:var(--focus); box-shadow:0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
+.sbox .mag { position:absolute; left:12px; top:14px; color:var(--ink-3); pointer-events:none; }
+.cbox input { all:unset; flex:1 1 170px; min-width:120px; padding:6px 2px; font-size:15px; }
+.cbox input::placeholder { color:var(--ink-3); }
+.tag { display:inline-flex; align-items:center; gap:6px; max-width:100%; padding:3px 5px 3px 11px; border-radius:99px; background:var(--brand-soft); font-size:13.5px; }
+.tag span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tag button { all:unset; cursor:pointer; width:20px; height:20px; display:grid; place-items:center; border-radius:50%; color:var(--ink-3); }
+.tag button:hover { background:var(--line); color:var(--ink); } .tag button:focus-visible { outline:2px solid var(--focus); }
+.sug { position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:20; max-height:340px; overflow:auto; padding:6px; }
+.sug .grp { padding:8px 10px 4px; font-size:11.5px; font-weight:650; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); }
+.sug button { all:unset; box-sizing:border-box; width:100%; cursor:pointer; display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; }
+.sug button:hover, .sug button[aria-selected="true"] { background:var(--brand-soft); }
+.sug .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .sug .m { color:var(--ink-3); font-size:12.5px; white-space:nowrap; }
+.sug .none { padding:12px 10px; color:var(--ink-3); }
+.sel { padding:0 30px 0 12px; min-height:46px; border:1px solid var(--line-2); border-radius:11px; background:var(--surface); box-shadow:var(--shadow); cursor:pointer; appearance:none; -webkit-appearance:none;
+  background-image:linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%); background-position:calc(100% - 17px) 20px, calc(100% - 12px) 20px; background-size:5px 5px; background-repeat:no-repeat; }
+.clear { all:unset; cursor:pointer; align-self:center; color:var(--brand); font-size:14px; padding:6px 4px; } .clear:hover { text-decoration:underline; } .clear:focus-visible { outline:2px solid var(--focus); }
+code { font-family:Consolas, "Cascadia Mono", monospace; font-size:12.5px; background:var(--pend-soft); padding:1px 5px; border-radius:5px; color:var(--ink-2); word-break:break-all; }
+
+/* search + live action */
+.btn.go { min-height:46px; padding:0 22px; border-radius:11px; white-space:nowrap; max-width:360px; overflow:hidden; text-overflow:ellipsis; box-shadow:var(--shadow); }
+.bar2 { margin-top:-2px; }
+.tag b { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3); font-weight:650; }
+.tag.f { background:transparent; border:1px dashed var(--line-2); } .tag.f em { font-style:normal; color:var(--ink-3); font-size:12px; }
+.sug button.live { background:var(--warn-soft); } .sug button.live:hover, .sug button.live[aria-selected="true"] { background:var(--brand-soft); }
+
+/* live bar */
+.livebar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin:0 0 12px; padding:2px 2px; }
+.lb-src { display:flex; align-items:center; gap:8px; color:var(--ink-2); font-size:14px; }
+.lb-dot { width:9px; height:9px; border-radius:50%; background:var(--pend); flex:none; } .lb-dot.live { background:var(--go); } .lb-dot.run { background:var(--warn); animation:pulse 1s infinite; }
+.lb-act { margin-left:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.lb-msg { color:var(--ink-2); font-size:13.5px; max-width:48ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .lb-msg.bad { color:var(--bad); white-space:normal; }
+.lb-note { flex-basis:100%; margin:0; color:var(--ink-3); font-size:13px; }
+.btn { display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:9px; border:1px solid var(--brand); background:var(--brand); color:var(--brand-ink); cursor:pointer; font-size:14.5px; font-weight:600; }
+.btn:hover { filter:brightness(1.08); } .btn:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+.btn.alt { background:var(--surface); color:var(--ink); border-color:var(--line-2); box-shadow:var(--shadow); font-weight:500; } .btn.alt:hover { background:var(--surface-2); filter:none; }
+.spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line-2); border-top-color:var(--warn); border-radius:50%; animation:spin .9s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* table card */
+.th { display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; padding:13px 18px; border-bottom:1px solid var(--line); }
+.cn { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.cnt { padding:3px 11px; border-radius:99px; background:var(--pend-soft); color:var(--ink-2); font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
+.legend { display:flex; flex-wrap:wrap; align-items:center; gap:4px 16px; color:var(--ink-3); font-size:13px; padding-left:12px; border-left:1px solid var(--line-2); }
+.legend[hidden] { display:none; }
+.legend .lg { white-space:nowrap; } .legend .os { color:var(--ink-2); margin-right:2px; }
+@media (max-width:760px) { .legend { border-left:0; padding-left:0; width:100%; } }
+.os { color:var(--ink-3); font-size:12px; font-weight:600; letter-spacing:.02em; white-space:nowrap; }
+.cnt.bad { background:var(--bad-soft); color:var(--bad); } .cnt.src { background:var(--brand-soft); color:var(--ink); }
+.th .qb { margin-left:auto; } .th .qb + .qb { margin-left:0; }
+.tw { overflow:auto; }
+table { border-collapse:collapse; width:100%; min-width:940px; }
+th, td { padding:13px 16px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top; }
+thead th { background:var(--surface-2); font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); white-space:nowrap; position:sticky; top:0; z-index:1; padding-top:10px; padding-bottom:10px; }
+th.r, td.r { text-align:right; }
+th button { all:unset; cursor:pointer; display:inline-flex; gap:5px; align-items:center; text-transform:inherit; letter-spacing:inherit; }
+th button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+th .ar { opacity:.35; font-size:10px; } th[aria-sort] .ar { opacity:1; }
+tbody tr.row:hover td { background:var(--surface-2); }
+.nm { font-weight:650; word-break:break-word; } .em { color:var(--ink-3); font-size:12.5px; word-break:break-all; }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:99px; font-size:12.5px; font-weight:600; white-space:nowrap; }
+.chip.bad { background:var(--bad-soft); color:var(--bad); } .chip.warn { background:var(--warn-soft); color:var(--warn); }
+.chip.pend { background:var(--pend-soft); color:var(--pend); } .chip.go { background:var(--go-soft); color:var(--go); }
+.chip svg { width:13px; height:13px; }
+.none { color:var(--bad); font-weight:600; } .muted { color:var(--ink-3); } .sm { font-size:12.5px; }
+mark { background:var(--mark); color:inherit; border-radius:3px; padding:0 1px; }
+.empty, .err { padding:48px 20px; text-align:center; color:var(--ink-3); }
+.empty h3, .err h3 { margin:0 0 4px; color:var(--ink); } .err h3 { color:var(--bad); }
+.skel { padding:14px 18px; } .skel i { display:block; height:16px; border-radius:5px; background:var(--pend-soft); margin:18px 0; animation:pulse 1.2s infinite; }
+
+/* data source picker */
+.dsb { position:relative; }
+.dsb > button { all:unset; box-sizing:border-box; cursor:pointer; display:inline-flex; align-items:center; gap:8px; min-height:46px; padding:0 34px 0 14px; border:1px solid var(--line-2); border-radius:11px; background:var(--surface); box-shadow:var(--shadow); max-width:290px; position:relative; }
+.dsb > button:focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+.dsb > button .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dsb > button::after { content:""; position:absolute; right:14px; top:17px; width:6px; height:6px; border-right:1.5px solid var(--ink-3); border-bottom:1.5px solid var(--ink-3); transform:rotate(45deg); }
+.dsb > button.on { background:var(--brand-soft); }
+.dsp { position:absolute; left:0; top:calc(100% + 6px); z-index:25; width:min(360px, 92vw); padding:10px; }
+.dsp .f { width:100%; padding:8px 12px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface); min-height:38px; }
+.dsp .acts { display:flex; gap:14px; margin:8px 2px 4px; font-size:13px; }
+.dsp .acts button { all:unset; cursor:pointer; color:var(--brand); } .dsp .acts button:hover { text-decoration:underline; } .dsp .acts button:focus-visible { outline:2px solid var(--focus); }
+.dsp .acts .c { margin-left:auto; color:var(--ink-3); }
+.dsl { max-height:300px; overflow:auto; }
+.dsl label { display:flex; align-items:center; gap:10px; padding:8px 8px; border-radius:8px; cursor:pointer; }
+.dsl label:hover { background:var(--brand-soft); }
+.dsl input { width:16px; height:16px; accent-color:var(--brand); flex:none; }
+.dsl .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .dsl .m { color:var(--ink-3); font-size:12.5px; white-space:nowrap; }
+.dsl .none { padding:12px 8px; color:var(--ink-3); }
+
+/* inline detail */
+tr.row.open td { background:var(--surface-2); border-bottom-color:transparent; }
+.who { display:flex; gap:8px; align-items:flex-start; }
+.tog { all:unset; cursor:pointer; width:22px; height:22px; display:grid; place-items:center; border-radius:6px; color:var(--ink-3); flex:none; }
+.tog:hover { background:var(--pend-soft); } .tog:focus-visible { outline:2px solid var(--focus); outline-offset:1px; }
+.tog svg { transition:transform .15s; } tr.row.open .tog svg { transform:rotate(90deg); }
+.sec { display:flex; flex-direction:column; gap:1px; }
+tr.det td { background:var(--surface-2); padding:2px 16px 16px 50px; }
+.dh { margin:6px 0 10px; font-size:13.5px; } .dh b { display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); font-weight:600; }
+.afind { width:100%; max-width:340px; padding:8px 12px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface); margin-bottom:10px; min-height:38px; }
+.al { border:1px solid var(--line); border-radius:9px; overflow:auto; max-height:340px; background:var(--surface); }
+.al table { min-width:820px; } .al th, .al td { padding:7px 10px; font-size:13px; } .al thead th { top:0; }
+.al td.p { word-break:break-all; }
+.lv { padding:1px 8px; border-radius:99px; background:var(--pend-soft); color:var(--pend); font-size:12px; }
+.cp { all:unset; cursor:pointer; color:var(--ink-3); padding:2px 4px; border-radius:5px; } .cp:hover { background:var(--pend-soft); color:var(--ink); } .cp:focus-visible { outline:2px solid var(--focus); }
+.toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#16202e; color:#fff; padding:9px 16px; border-radius:9px; z-index:60; font-size:14px; }
+
+/* clean layout */
+.head { align-items:center; margin-bottom:16px; }
+.head h2 { font-size:26px; letter-spacing:-.015em; }
+.icn { all:unset; cursor:pointer; width:34px; height:34px; display:grid; place-items:center; border-radius:8px; color:var(--ink-3); }
+.icn:hover { background:var(--pend-soft); color:var(--ink); } .icn:focus-visible { outline:2px solid var(--focus); outline-offset:1px; } .icn[disabled] { opacity:.5; cursor:default; }
+.finder { margin-bottom:20px; }
+.search { position:relative; display:flex; align-items:center; gap:6px; padding:5px 5px 5px 42px; background:var(--surface); border:1px solid var(--line-2); border-radius:14px; box-shadow:var(--shadow); max-width:880px; }
+.search:focus-within { border-color:var(--focus); box-shadow:0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
+.search .mag { position:absolute; left:15px; top:50%; margin-top:-8px; color:var(--ink-3); }
+.search .cbox { border:0; box-shadow:none; background:transparent; padding:2px 4px; min-height:44px; flex:1 1 auto; min-width:0; }
+.search .cbox:focus-within { box-shadow:none; border:0; }
+.search .qb { white-space:nowrap; }
+.btn.go { min-height:42px; padding:0 22px; border-radius:10px; box-shadow:none; max-width:none; white-space:nowrap; }
+.search .sug { left:0; right:0; top:calc(100% + 8px); }
+.livebar { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin:10px 4px 0; padding:0; font-size:13px; color:var(--ink-3); max-width:880px; }
+.livebar .lb-src { color:var(--ink-2); } .lb-note { flex-basis:auto; margin:0; } .lb-act { margin-left:auto; display:flex; align-items:center; gap:8px; }
+.lb-msg { max-width:46ch; font-size:13px; }
+.th { padding:12px 16px; gap:10px 14px; }
+.fl { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:auto; }
+.sel, .dsb > button { min-height:36px; border-radius:9px; box-shadow:none; font-size:14px; }
+.sel { padding:0 28px 0 11px; background-position:calc(100% - 15px) 15px, calc(100% - 10px) 15px; }
+.dsb > button { padding:0 30px 0 11px; max-width:230px; } .dsb > button::after { top:13px; right:12px; }
+.clear { align-self:center; }
+.th .qb, .th .qb + .qb { margin-left:0; }
+.dl { position:relative; }
+.menu { position:absolute; right:0; top:calc(100% + 6px); z-index:25; padding:6px; min-width:170px; }
+.menu button { all:unset; box-sizing:border-box; display:block; width:100%; cursor:pointer; padding:9px 12px; border-radius:8px; font-size:14px; }
+.menu button:hover { background:var(--brand-soft); } .menu button[disabled] { opacity:.5; cursor:default; } .menu button:focus-visible { outline:2px solid var(--focus); }
+@media (max-width:760px) { .search { padding-left:38px; } .fl { margin-left:0; } }
+
+@media (max-width:760px) { main { padding:16px 10px 40px; } .head h2 { font-size:21px; } .stamp { margin-left:0; } .sel { flex:1 1 140px; } }
+@media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+/* use the width of the screen */
+header.top .in, main { max-width:1840px; padding-left:clamp(14px, 2vw, 36px); padding-right:clamp(14px, 2vw, 36px); }
+.search, .livebar { max-width:none; }
+table { min-width:1040px; }
+tbody td:first-child { min-width:300px; }
+.nm, .em { overflow-wrap:anywhere; word-break:normal; }
+@media (max-width:640px) { header.top .in, main { padding-left:10px; padding-right:10px; } }
+/* UX review fixes */
+.search, .livebar, .progress { max-width:940px; }                                                   /* 1: the search does not stretch across the page */
+#stamp { display:none; }                                                                           /* 4: the time is shown once, in the status line */
+.sel, .dsb > button { appearance:none; -webkit-appearance:none; background-color:var(--surface); background-repeat:no-repeat; background-position:right 11px center; background-size:12px 8px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238f9aa9' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.dsb > button::after { display:none; } .dsb > button.on { background-color:var(--brand-soft); }  /* 5: one chevron everywhere */
+.dl > .qb { border:1px solid var(--line-2); background:var(--surface); padding:8px 14px; border-radius:9px; }   /* 6: Download looks like a button */
+.dl > .qb:hover { background:var(--surface-2); } .dl > .qb[disabled] { opacity:.5; }
+.al td.p a { text-decoration:none; } .al td.p a:hover { text-decoration:underline; text-underline-offset:3px; }  /* 7: underlines no longer hide underscores */
+.al td, .al th { white-space:nowrap; vertical-align:middle; } .al td.p { white-space:normal; word-break:break-all; min-width:340px; }  /* 10 */
+tbody tr.row { cursor:pointer; }                                                                   /* 12: the whole row is clickable */
+.progress { height:3px; margin-top:8px; border-radius:3px; background:var(--pend-soft); overflow:hidden; }
+.progress i { display:block; height:100%; width:35%; background:var(--brand); border-radius:3px; animation:slide 1.3s ease-in-out infinite; }
+@keyframes slide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
+.lb-msg { max-width:none; white-space:normal; overflow:visible; text-overflow:clip; }               /* 8: the whole message shows */
+#live-cancel { border:1px solid var(--line-2); background:var(--surface); border-radius:10px; padding:0 18px; min-height:42px; color:var(--ink); }
+.empty .qb { border:1px solid var(--line-2); background:var(--surface); padding:8px 14px; border-radius:9px; }   /* 13 */
+@media (max-width:760px) {                                                                         /* 2: a phone gets cards, not an 8-column table */
+  .icn { width:40px; height:40px; }
+  .search { flex-wrap:wrap; padding:5px 5px 5px 38px; } .search .cbox { flex:1 1 100%; }
+  .btn.go, #live-cancel { flex:1 1 100%; margin:0 0 3px; }
+  .th { align-items:flex-start; } .fl { width:100%; display:grid; grid-template-columns:1fr 1fr; }
+  .fl .dsb { grid-column:1 / -1; } .dsb > button, .sel { width:100%; max-width:none; }
+  .clear { grid-column:1 / -1; justify-self:start; } .dl { margin-left:auto; }
+  #tw > table { min-width:0; } #tw > table, #tw > table > tbody, #tw > table > tbody > tr { display:block; } #tw > table > thead { display:none; }
+  #tw > table > tbody > tr.row { padding:12px 14px; border-bottom:1px solid var(--line); }
+  #tw > table > tbody > tr.row > td { display:flex; justify-content:space-between; gap:14px; border:0; padding:4px 0; text-align:right; min-width:0; }
+  #tw > table > tbody > tr.row > td[data-label]::before { content:attr(data-label); color:var(--ink-3); font-size:12px; text-transform:uppercase; letter-spacing:.04em; text-align:left; flex:none; padding-top:2px; }
+  #tw > table > tbody > tr.row > td:first-child { display:block; text-align:left; padding-bottom:6px; }
+  #tw > table > tbody > tr.det > td { display:block; padding:2px 14px 14px; min-width:0; }
+  .al td.p { min-width:220px; }
+}
+/* phone alignment */
+@media (max-width:760px) {
+  .head { justify-content:space-between; } .stamp { margin-left:auto; }
+  .search .mag { top:19px; margin-top:0; }
+  #tw > table > tbody > tr.row > td .v { text-align:right; } #tw > table > tbody > tr.row > td .sec { align-items:flex-end; }
+}
+/* ---- visual polish (cosmetic only; ids, content and behaviour unchanged) ---- */
+:root { --bg:#f4f6f8; --line:#e4e8ee; --line-2:#d3dae3; --radius:10px; --ctl:40px; --shadow:0 1px 2px rgba(16,24,40,.04); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1219; --line:#243040; --line-2:#33425a; } }
+:root[data-theme="dark"] { --bg:#0d1219; --line:#243040; --line-2:#33425a; }
+header.top .in { padding-top:8px; padding-bottom:8px; gap:16px; }
+.logo { width:32px; height:32px; border-radius:8px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.16); }
+.brand h1 { font-size:16px; line-height:1.25; } .brand p { font-size:12.5px; line-height:1.3; }
+.hchip { height:32px; padding:0 12px; font-size:13px; line-height:1; border-color:rgba(255,255,255,.2); }
+.iconbtn { width:36px; height:36px; align-items:center; justify-content:center; padding:0; border-radius:8px; }
+svg.i { width:16px; height:16px; stroke-width:1.75; vertical-align:middle; }
+main { padding-top:24px; padding-bottom:48px; }
+.card { border-color:var(--line); box-shadow:var(--shadow); }
+.card.pop, .card.sug, .card.dsp, .card.menu { box-shadow:var(--shadow-lg); }
+.head { gap:16px; margin-bottom:8px; }
+.head h2 { font-size:24px; line-height:32px; font-weight:650; letter-spacing:-.01em; }
+.head-actions { margin-left:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.head-actions .stamp { margin-left:0; }
+.btn.go { min-height:var(--ctl); height:var(--ctl); padding:0 16px; border-radius:8px; font-size:14px; font-weight:600; }
+#live-cancel { min-height:var(--ctl); height:var(--ctl); padding:0 16px; border-radius:8px; font-size:14px; }
+.icn { width:var(--ctl); height:var(--ctl); border-radius:8px; }
+.finder { margin-bottom:16px; }
+.livebar { margin:0; font-size:13px; color:var(--ink-3); }
+.progress { margin:0 0 8px; max-width:none; }
+.th { padding:16px 16px 8px; border-bottom:0; gap:8px 16px; justify-content:space-between; }
+.th2 { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; padding:8px 16px 16px; border-bottom:1px solid var(--line); }
+.cnt { height:28px; display:inline-flex; align-items:center; padding:0 12px; font-size:13px; font-weight:600; }
+.cn { gap:8px; }
+.dl > .qb { height:var(--ctl); min-height:var(--ctl); padding:0 16px; border-radius:8px; font-size:14px; font-weight:500; color:var(--ink); }
+.search { flex:1 1 360px; min-width:260px; max-width:560px; padding:0 0 0 38px; border-radius:8px; box-shadow:none; min-height:var(--ctl); background:var(--surface); }
+.search:focus-within { box-shadow:0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
+.search .mag { left:12px; top:50%; margin-top:-8px; }
+.search .cbox { min-height:calc(var(--ctl) - 2px); padding:3px 8px 3px 0; gap:8px; }
+.cbox input { font-size:14px; padding:4px 0; }
+.search .sug { top:calc(100% + 8px); }
+.fl { margin-left:0; gap:8px; flex:0 1 auto; }
+.sel, .dsb > button { height:var(--ctl); min-height:var(--ctl); border-radius:8px; border-color:var(--line-2); font-size:14px; }
+.sel { padding:0 32px 0 12px; } .dsb > button { padding:0 32px 0 12px; max-width:240px; }
+.clear { min-height:var(--ctl); padding:0 8px; font-size:14px; }
+table { min-width:980px; }
+th, td { padding:12px 16px; border-bottom:1px solid var(--line); }
+thead th { padding-top:12px; padding-bottom:12px; font-size:12px; font-weight:600; letter-spacing:.04em; color:var(--ink-2); }
+th.r button { margin-left:auto; }
+tbody tr.row:hover td { background:var(--surface-2); }
+tbody tr:last-child td { border-bottom:0; }
+.nm { font-weight:500; color:var(--ink); } .em { color:var(--ink-3); font-size:12.5px; }
+.chip { height:24px; padding:0 10px; gap:6px; font-size:12.5px; font-weight:600; line-height:1; border:1px solid transparent; }
+.chip.bad { border-color:color-mix(in srgb, var(--bad) 18%, transparent); }
+.chip.warn { border-color:color-mix(in srgb, var(--warn) 22%, transparent); }
+.chip svg { width:14px; height:14px; stroke-width:2; }
+.none { font-weight:500; }
+@media (max-width:760px) {
+  .head-actions { margin-left:0; width:100%; } .head-actions .btn.go { flex:1 1 auto; }
+  .th { align-items:center; } .th2 { padding:8px 12px 12px; } .search { flex:1 1 100%; max-width:none; }
+  .th2 .fl { width:100%; }
+}
+/* ---- final layout: centred search + catalog button, filters on the right ---- */
+.searchrow { display:flex; align-items:center; justify-content:center; gap:12px; max-width:760px; margin:8px auto 10px; }
+.searchrow .search { flex:1 1 auto; max-width:none; min-height:44px; }
+.searchrow .btn.go, .searchrow #live-cancel { height:44px; min-height:44px; flex:none; }
+.finder { margin-bottom:16px; }
+.finder .progress { max-width:760px; margin:0 auto 8px; }
+.finder .livebar { justify-content:center; text-align:center; max-width:760px; margin:0 auto; }
+.finder .lb-act { margin-left:0; }
+.head { margin-bottom:0; }
+.th2 { justify-content:flex-end; padding-top:0; }
+.th2 .fl { margin-left:auto; justify-content:flex-end; }
+@media (max-width:760px) {
+  .searchrow { flex-wrap:wrap; }
+  .searchrow .search { flex:1 1 100%; }
+  .searchrow .btn.go, .searchrow #live-cancel { flex:1 1 100%; }
+  .th2 .fl { width:100%; justify-content:flex-start; margin-left:0; }
+}
+/* ---- centred heading, visible utility icons ---- */
+.head { position:relative; justify-content:center; text-align:center; min-height:40px; margin-bottom:4px; }
+.head h2 { margin:0; text-align:center; }
+.head-actions { position:absolute; right:0; top:50%; transform:translateY(-50%); margin:0; padding:0; gap:8px; flex-wrap:nowrap; }
+.head-actions .icn { width:40px; height:40px; color:var(--ink-2); background:var(--surface); border:1px solid var(--line-2); border-radius:8px; }
+.head-actions .icn:hover { background:var(--brand-soft); color:var(--ink); }
+.head-actions .icn svg.i { width:18px; height:18px; stroke-width:1.9; }
+.head-actions .stamp { gap:8px; }
+@media (max-width:760px) {
+  .head { flex-direction:column; gap:8px; }
+  .head-actions { position:static; transform:none; width:auto; justify-content:center; }
+}
+/* ---- polish: card depth, search emphasis, quieter table, soft badges, owner avatars ---- */
+.card { border-radius:12px; box-shadow:0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.05); }
+.card.pop, .card.sug, .card.dsp, .card.menu { box-shadow:var(--shadow-lg); }
+.head { margin-bottom:12px; }
+.searchrow .search { min-height:48px; border-radius:10px; box-shadow:0 1px 2px rgba(16,24,40,.05); }
+.searchrow .btn.go, .searchrow #live-cancel { height:48px; min-height:48px; border-radius:10px; }
+.search .cbox { min-height:46px; }
+.search:focus-within { border-color:var(--focus); box-shadow:0 0 0 4px color-mix(in srgb, var(--focus) 18%, transparent); }
+thead th { background:var(--surface-2); color:var(--ink-3); font-weight:600; font-size:11.5px; letter-spacing:.06em; }
+th, td { border-bottom-color:color-mix(in srgb, var(--line) 70%, transparent); }
+thead th { border-bottom-color:var(--line); }
+tbody td { padding-top:16px; padding-bottom:16px; }
+tbody tr.row:hover td { background:color-mix(in srgb, var(--brand) 5%, var(--surface)); }
+tbody tr.row:hover td:first-child { box-shadow:inset 3px 0 0 var(--brand); }
+.chip.bad { border-color:color-mix(in srgb, var(--bad) 16%, transparent); }
+.chip.warn { border-color:color-mix(in srgb, var(--warn) 20%, transparent); }
+.who { align-items:center; }
+.av { width:30px; height:30px; border-radius:50%; background:var(--brand-soft); color:var(--brand); font-size:11px; font-weight:650; display:grid; place-items:center; flex:none; letter-spacing:.02em; }
+@media (max-width:760px) { .av { width:26px; height:26px; } }
+/* ---- compact: filters share the pills row, tighter vertical rhythm ---- */
+main { padding-top:16px; padding-bottom:24px; }
+.head { min-height:36px; margin-bottom:8px; }
+.searchrow { margin:0 auto 8px; }
+.finder { margin-bottom:12px; }
+.th { align-items:center; padding:12px 16px; }
+.th .fl { margin-left:auto; margin-right:8px; justify-content:flex-end; }
+.th .dl { margin-left:0; }
+tbody td { padding-top:11px; padding-bottom:11px; }
+.sec { line-height:1.35; }
+@media (max-width:760px) { .th .fl { width:100%; order:3; margin:0; justify-content:flex-start; } }
+/* ---- pager ---- */
+.pager { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; padding:12px 16px; border-top:1px solid var(--line); color:var(--ink-3); font-size:13.5px; }
+.pager[hidden] { display:none; }
+.pg-ctl { display:flex; align-items:center; gap:8px; margin-left:auto; flex-wrap:wrap; }
+.pg-l { color:var(--ink-3); }
+.pager .sel { min-width:76px; }
+.pgb { height:var(--ctl); min-height:var(--ctl); padding:0 14px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); color:var(--ink); font-size:14px; font-weight:500; cursor:pointer; }
+.pgb:hover:not([disabled]) { background:var(--surface-2); }
+.pgb[disabled] { color:var(--ink-3); opacity:.55; cursor:default; }
+.pg-info { color:var(--ink-2); padding:0 4px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+@media (max-width:760px) { .pg-range { display:none; } .pg-ctl { margin-left:0; width:100%; justify-content:space-between; } }
+
+/* ---- O / S badges ---- */
+:root { --own:#084282; --own-bg:#e7eef8; --stw:#5b3fa8; --stw-bg:#efe9fb; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --own:#9bbcf0; --own-bg:#1a2738; --stw:#c4b3f3; --stw-bg:#2a2140; } }
+:root[data-theme="dark"] { --own:#9bbcf0; --own-bg:#1a2738; --stw:#c4b3f3; --stw-bg:#2a2140; }
+.tgs { display:inline-flex; gap:3px; vertical-align:1px; margin-left:4px; }
+.tg { display:inline-grid; place-items:center; min-width:19px; height:19px; padding:0 5px; border-radius:6px; font-size:11px; font-weight:700; line-height:1; letter-spacing:.02em; }
+.tg.o { background:var(--own-bg); color:var(--own); } .tg.s { background:var(--stw-bg); color:var(--stw); }
+.legend { gap:6px 18px; padding:0 0 0 14px; border-left:1px solid var(--line-2); font-size:13px; color:var(--ink-2); }
+.legend .lg { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; }
+.legend .tgs { margin-left:0; }
+.pop .tg { vertical-align:1px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3L12 4z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 010 18z" fill="currentColor"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="in">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><svg class="i" style="width:19px;height:19px"><use href="#i-shield"/></svg></div>
+      <div><h1>Ownership Audit - Stale Owners</h1><p>Alation owners and stewards, checked against Active Directory</p></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="chips" role="group" aria-label="Connections">
+      <span class="hchip checking" id="chip-alation"><span class="d"></span><span>Alation</span><span class="sr" id="chip-alation-sr">checking</span></span>
+      <span class="hchip checking" id="chip-ad"><span class="d"></span><span>Active Directory</span><span class="sr" id="chip-ad-sr">checking</span></span>
+    </div>
+    <button class="iconbtn" id="theme" title="Theme: system" aria-label="Theme: system"><svg class="i" style="width:19px;height:19px"><use href="#i-auto"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <div id="banner"></div>
+
+  <div class="head">
+    <h2>Stale Owner Search</h2>
+    <div class="head-actions">
+      <div class="stamp">
+        <span id="stamp"></span>
+        <button class="icn" id="info" type="button" aria-expanded="false" aria-controls="pop" aria-label="About these figures" title="About these figures"><svg class="i"><use href="#i-info"/></svg></button>
+        <button class="icn" id="refresh" type="button" aria-label="Refresh" title="Refresh"><svg class="i"><use href="#i-refresh"/></svg></button>
+        <div class="card pop" id="pop" role="dialog" aria-label="About these figures" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="finder">
+    <div class="searchrow">
+      <div class="search" role="search">
+        <svg class="i mag"><use href="#i-search"/></svg>
+        <div class="cbox" id="cbox"><span id="tags" style="display:contents"></span>
+          <input id="ci" type="text" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="sug" aria-autocomplete="list" aria-label="Search a data source or schema" placeholder="Search a data source or schema">
+        </div>
+        <div class="card sug" id="sug" role="listbox" hidden></div>
+      </div>
+      <button class="btn go" id="live" type="button">Check whole catalog</button>
+      <button class="qb" id="live-cancel" type="button" hidden>Cancel</button>
+    </div>
+    <div class="progress" id="prog" hidden><i></i></div>
+    <div class="livebar" id="livebar" role="region" aria-label="Where these figures come from">
+      <span class="lb-dot" id="lb-dot"></span><span class="lb-src" id="srcline"></span><span class="lb-note" id="lb-note"></span>
+      <span class="lb-act"><span class="lb-msg" id="lb-msg" role="status" hidden></span><button class="qb" id="back" type="button" hidden>Show latest validation</button></span>
+    </div>
+  </div>
+
+  <section class="card" aria-label="Stale owners">
+    <div class="th">
+      <div class="cn" id="cn" aria-live="polite"></div>
+      <div class="legend" id="legend" role="note" aria-label="Legend" hidden>
+        <span class="lg"><span class="tg o">O</span>Owner</span><span class="lg"><span class="tg s">S</span>Steward</span><span class="lg"><span class="tgs"><span class="tg o">O</span><span class="tg s">S</span></span>Both</span>
+      </div>
+      <div class="fl">
+        <div class="dsb" id="dsb">
+          <button type="button" id="dsbtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="dsp"><span class="t" id="dslabel">All data sources</span></button>
+          <div class="card dsp" id="dsp" role="dialog" aria-label="Choose data sources" hidden>
+            <label class="sr" for="dsf">Find a data source</label>
+            <input class="f" id="dsf" type="search" autocomplete="off" placeholder="Find a data source…">
+            <div class="acts"><button type="button" id="ds-all">All data sources</button><span class="c" id="ds-c"></span></div>
+            <div class="dsl" id="dsl" role="group" aria-label="Data sources"></div>
+          </div>
+        </div>
+        <label class="sr" for="f-status">Status</label>
+        <select class="sel" id="f-status"><option value="">All statuses</option></select>
+        <label class="sr" for="f-risk">Risk</label>
+        <select class="sel" id="f-risk"><option value="">All risks</option><option>High</option><option>Medium</option><option>Low</option></select>
+        <button class="clear" id="clear" type="button" hidden>Clear</button>
+      </div>
+      <div class="dl">
+        <button class="qb" id="dl" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="dlm" disabled><svg class="i"><use href="#i-down"/></svg>Download</button>
+        <div class="card menu" id="dlm" role="menu" hidden>
+          <button type="button" role="menuitem" id="report" disabled>Excel report</button>
+          <button type="button" role="menuitem" id="export" disabled>CSV</button>
+        </div>
+      </div>
+    </div>
+    <div class="tw" id="tw"><div class="skel"><i></i><i></i><i></i><i></i></div></div>
+    <nav class="pager" id="pager" aria-label="Pages" hidden>
+      <span class="pg-range" id="pg-range" aria-live="polite"></span>
+      <span class="pg-ctl">
+        <label class="pg-l" for="pg-size">Rows</label>
+        <select class="sel" id="pg-size"><option>10</option><option>25</option><option>50</option><option>100</option></select>
+        <button type="button" class="pgb" id="pg-prev">‹ Prev</button>
+        <span class="pg-info" id="pg-info"></span>
+        <button type="button" class="pgb" id="pg-next">Next ›</button>
+      </span>
+    </nav>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => Number(n || 0).toLocaleString();
+const when = iso => iso ? new Date(iso).toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) : "";
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const ic = n => '<svg class="i"><use href="#i-' + n + '"/></svg>';
+function toast(t) { const e = document.createElement("div"); e.className = "toast"; e.textContent = t; document.body.append(e); setTimeout(() => e.remove(), 1800); }
+
+/* theme */
+const themes = ["system", "light", "dark"];
+let theme = store.get("stale.theme") || "system";
+function applyTheme(t) {
+  if (t === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = t;
+  $("#theme").title = "Theme: " + t; $("#theme").setAttribute("aria-label", "Theme: " + t);
+}
+applyTheme(theme);
+$("#theme").onclick = () => { theme = themes[(themes.indexOf(theme) + 1) % 3]; store.set("stale.theme", theme); applyTheme(theme); };
+
+/* state */
+let D = null, started = false, checking = false, polls = 0, timer = null, shown = [], index = [], sugItems = [], sugAt = -1, sources = [];
+let src = "latest", IDX = {sources: [], assets: []}, wasRunning = false, idxAsked = false, idxTimer = null;
+let terms = [], fStatus = "", fRisk = "", selSrc = [];
+const open = new Set();
+let sort = {key: "risk", dir: 1};
+try { Object.assign(sort, JSON.parse(store.get("stale.sort") || "{}")); } catch {}
+const RISK = {High: 0, Medium: 1, Low: 2};
+const SORTS = {
+  owner: (a, b) => a.r.owner.localeCompare(b.r.owner, undefined, {sensitivity: "base"}),
+  status: (a, b) => a.r.status.localeCompare(b.r.status),
+  source: (a, b) => (a.r.data_source[0] || "").localeCompare(b.r.data_source[0] || ""),
+  total: (a, b) => a.total - b.total, catalogs: (a, b) => a.catalogs - b.catalogs, schemas: (a, b) => a.schemas - b.schemas, tables: (a, b) => a.tables - b.tables,
+  risk: (a, b) => RISK[a.r.risk] - RISK[b.r.risk] || b.total - a.total,
+};
+
+/* what the counts count: with table level off they are schemas (and catalogs, when there are any), not "assets" */
+/* a person followed by their mark: "Barry, Riley W (O)" shows the (O) quietly; (S) is a steward, (O, S) both */
+const tagBadges = t => String(t).split(/,\s*/).filter(x => x === "O" || x === "S").map(x => '<span class="tg ' + x.toLowerCase() + '" title="' + (x === "O" ? "Owner" : "Steward") + '" aria-label="' + (x === "O" ? "Owner" : "Steward") + '">' + x + '</span>').join("");
+const person = n => { const m = /^(.*) \(([OS](?:, S)?)\)$/.exec(String(n)); return m ? esc(m[1]) + ' <span class="tgs">' + tagBadges(m[2]) + '</span>' : esc(n); };
+/* a data source is shown without its "Group - " prefix ("Krogerlytics - Clickstream Behavioral" shows as "Clickstream Behavioral"); the full name is still what is searched, filtered and sent */
+const dsShow = n => { const t = String(n == null ? "" : n), i = t.indexOf(" - "); return i > 0 && t.length > i + 3 ? t.slice(i + 3) : t; };
+const hasCat = () => D.rows.some(r => r.catalogs > 0);
+const noun = n => (D.show_tables || hasCat() ? "asset" : "schema") + (n === 1 ? "" : "s");
+
+/* load */
+async function load(manual) {
+  if (manual) $("#refresh").disabled = true;
+  try {
+    const res = await fetch("/api/owners/stale?source=" + src);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || res.status + " " + res.statusText);
+    D = body;
+  } catch (e) {
+    $("#tw").innerHTML = '<div class="err"><h3>The stale owners could not be loaded</h3><p>' + esc(e.message) + '</p><p><button class="qb" id="retry" type="button">Try again</button></p></div>';
+    const b = $("#retry"); if (b) b.onclick = () => load(true);
+    $("#refresh").disabled = false; schedule(15000); return;
+  }
+  $("#refresh").disabled = false;
+  const running = D.live.status === "running" || D.live.status === "queued";
+  if (wasRunning && !running && D.live.status === "done" && D.live.has_result && src !== "live") { src = "live"; wasRunning = false; loadIndex(); return load(false); }
+  if (wasRunning && !running) wasRunning = false;
+  if (running) wasRunning = true;
+  render();
+  if (!idxAsked) { idxAsked = true; loadIndex(); }
+  if (src !== "live" && !D.sources_ready && D.rows.length && !started) {
+    started = true;
+    fetch("/api/owners/stale/sources", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"}).catch(() => {});
+  }
+  if (!D.health.alation.checked && !checking) {
+    checking = true;
+    fetch("/api/owners/check", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"}).catch(() => {});
+  }
+  const vrun = D.run.status === "running" || D.run.status === "queued";
+  schedule(running ? 1500 : !D.health.alation.checked && checking && ++polls < 15 ? 2000 : src !== "live" && !D.sources_ready && D.rows.length ? 4000 : vrun ? 5000 : 0);
+}
+function schedule(ms) { clearTimeout(timer); if (ms) timer = setTimeout(() => load(false), ms); }
+$("#refresh").onclick = () => load(true);
+
+/* header chips, banner, status stamp and about popover */
+function chips() {
+  [["alation", "Alation"], ["ad", "Active Directory"]].forEach(([id, label]) => {
+    const info = D.health[id], el = $("#chip-" + id);
+    el.className = "hchip " + (!info.checked ? "checking" : info.ok ? "ok" : "bad");
+    $("#chip-" + id + "-sr").textContent = !info.checked ? "checking" : info.ok ? "connected" : "not connected";
+    el.title = label + ": " + (info.detail || (info.ok ? "connected" : "not checked"));
+  });
+}
+function banner() {
+  const r = D.run, running = r.status === "running" || r.status === "queued";
+  $("#banner").innerHTML = !r.id ? '<div class="banner" role="status"><b>No validation run yet.</b> Stale owners are read from the latest validation results. Run a validation first.</div>'
+    : running ? '<div class="banner" role="status"><b>A validation run is in progress.</b> These figures update when it finishes.</div>'
+    : (r.status === "failed" || r.status === "cancelled") ? '<div class="banner bad" role="status"><b>The last run ' + esc(r.status) + '.</b> These figures come from the results it kept.</div>' : "";
+}
+function stamp() {
+  const r = D.run;
+  $("#stamp").textContent = src === "live" ? "Live · checked " + when(r.finished) : r.id ? (r.status === "done" ? "Validated " : "Run " + r.status + " · ") + when(r.finished || r.created) : "";
+  const ex = D.excluded || {}, notc = [];
+  if (ex.suspended) notc.push(fmt(ex.suspended.identities) + " owners suspended in Alation (" + fmt(ex.suspended.assignments) + " assignments)");
+  if (ex.no_account) notc.push(fmt(ex.no_account.identities) + " entries that are not Alation users (" + fmt(ex.no_account.assignments) + " assignments)");
+  $("#pop").innerHTML = '<h3>Based on</h3><p>' + (src === "live" ? 'A live read of Alation at ' + esc(when(r.finished)) + ' (' + esc(String(r.scope).split(", ").map(dsShow).join(", ")) + ')' : 'Validation run ' + esc(r.id || "–")) + ' · ' + fmt(D.counted.assets) + ' assets · ' + fmt(D.counted.assignments) + ' assignments · ' + fmt(D.counted.identities) + ' people counted.</p>' +
+    (notc.length ? '<h3>Not counted</h3><p>' + esc(notc.join(" · ")) + '.</p>' : "") +
+    '<h3>Risk</h3><p><b>High</b>: an asset has no valid owner or steward. <b>Medium</b>: every asset still has one, but there is no alternative owner. <b>Low</b>: every asset still has one and an alternative owner exists.</p>' +
+    '<h3>Alternative owner</h3><p>The validated people most often recorded on the same assets.</p>' +
+    '<h3>Marks</h3><p>' + tagBadges("O") + ' owner &middot; ' + tagBadges("S") + ' steward &middot; ' + tagBadges("O, S") + ' both. Shown after each person&rsquo;s name.</p>';
+}
+$("#info").onclick = e => { e.stopPropagation(); const p = $("#pop"); p.hidden = !p.hidden; $("#info").setAttribute("aria-expanded", String(!p.hidden)); };
+document.addEventListener("click", e => { const p = $("#pop"); if (!p.hidden && !p.contains(e.target)) { p.hidden = true; $("#info").setAttribute("aria-expanded", "false"); } });
+
+/* search: chips plus the text being typed, with suggestions from the live data */
+function ownerCounts() {
+  const m = new Map();
+  const add = (kind, label, owner) => { if (!label) return; const k = kind + "|" + label; if (!m.has(k)) m.set(k, new Set()); m.get(k).add(owner); };
+  D.rows.forEach(r => {
+    r.data_source.forEach(d => add("data source", d, r.owner));
+    r.assets.forEach(a => {
+      if (a.data_source) add("data source", a.data_source, r.owner);
+      if (a.level === "schema") add("schema", a.asset, r.owner);
+      if (a.level === "table") { add("table", a.asset, r.owner); add("schema", a.asset.split(".").slice(0, -1).join("."), r.owner); }
+    });
+  });
+  return m;
+}
+function buildIndex() {
+  const counts = ownerCounts(), all = new Map();
+  const put = (kind, label) => { if (label && !all.has(kind + "|" + label)) all.set(kind + "|" + label, {kind, label, n: (counts.get(kind + "|" + label) || {size: 0}).size, low: label.toLowerCase()}); };
+  counts.forEach((set, k) => { const [kind, ...rest] = k.split("|"); put(kind, rest.join("|")); });
+  IDX.sources.forEach(x => put("data source", x.name));
+  IDX.assets.forEach(([name, level]) => { if (level === "schema") put("schema", name); else if (level === "table" && D && D.show_tables) { put("table", name); put("schema", name.split(".").slice(0, -1).join(".")); } });
+  index = [...all.values()];
+}
+async function loadIndex() {
+  try {
+    const res = await fetch("/api/owners/stale/index");
+    const j = await res.json();
+    IDX = {sources: j.sources || [], assets: j.assets || [], built: j.built, fetched: j.fetched};
+    if (j.loading && !checking_idx) { checking_idx = true; fetch("/api/owners/stale/live/sources", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"}).catch(() => {}); clearTimeout(idxTimer); idxTimer = setTimeout(loadIndex, 4000); }
+  } catch {}
+  if (D) { buildIndex(); buildSources(); dsRender(); }
+}
+let checking_idx = false;
+const draft = () => $("#ci").value.trim();
+const exactNames = () => terms.filter(t => t.exact).map(t => t.t.toLowerCase());
+const containsTerms = () => terms.filter(t => !t.exact).map(t => t.t.toLowerCase()).concat(draft() ? [draft().toLowerCase()] : []);
+const active = () => exactNames().concat(containsTerms());
+function addTerms(text, exact, kind) {
+  String(text).split(exact ? /[\n\r]+/ : /[\n\r,;]+/).map(s => s.trim()).filter(Boolean).forEach(t => {
+    if (!terms.some(x => x.t.toLowerCase() === t.toLowerCase() && x.exact === !!exact)) terms.push({t, exact: !!exact, kind: kind || ""});
+  });
+  $("#ci").value = ""; closeSug(); renderTags(); table();
+}
+function renderTags() {
+  $("#tags").innerHTML = terms.map((t, i) => '<span class="tag ' + (t.exact ? "exact" : "f") + '">' + (t.exact ? '<b>' + esc(t.kind || "name") + '</b>' : '<em>contains</em>') + '<span title="' + esc(t.t) + '">' + esc(t.kind === "data source" ? dsShow(t.t) : t.t) +
+    '</span><button type="button" data-rm="' + i + '" aria-label="Remove ' + esc(t.t) + '">' + ic("x") + '</button></span>').join("");
+  $("#tags").querySelectorAll("[data-rm]").forEach(b => b.onclick = e => { e.stopPropagation(); terms.splice(Number(b.dataset.rm), 1); renderTags(); table(); $("#ci").focus(); });
+  $("#clear").hidden = !(terms.length || fStatus || fRisk || selSrc.length || draft());
+  const hint = D && D.show_tables ? "Search a data source, schema or table" : "Search a data source or schema";      // no "table" while table level is off
+  $("#ci").placeholder = terms.length ? "Add another…" : hint;
+  $("#ci").setAttribute("aria-label", hint);
+  if (D) livebar();
+}
+function suggest(q) {
+  const t = q.trim().toLowerCase();
+  if (!t) return index.filter(x => x.kind === "data source" && !terms.some(c => c.t.toLowerCase() === x.low)).sort((a, b) => a.label.localeCompare(b.label)).slice(0, 10);
+  const hit = index.filter(x => x.low.includes(t) && !terms.some(c => c.t.toLowerCase() === x.low));
+  hit.sort((a, b) => (b.low.startsWith(t) - a.low.startsWith(t)) || a.low.length - b.low.length);
+  const out = [];
+  (D && D.show_tables ? ["data source", "schema", "table"] : ["data source", "schema"]).forEach(k => hit.filter(x => x.kind === k).slice(0, k === "table" ? 4 : 3).forEach(x => out.push(x)));
+  return out;
+}
+function pickSug(x) {
+  if (x.kind === "live") { addTerms(x.label, true, "name"); startLive(); }
+  else addTerms(x.label, true, x.kind);
+}
+function showSug() {
+  const box = $("#sug"), q = draft();
+  sugItems = suggest(q); sugAt = -1;
+  if (q) sugItems.unshift({kind: "live", label: q});
+  if (!q && !sugItems.length) { closeSug(); return; }
+  let h = "", last = "";
+  sugItems.forEach((x, i) => {
+    if (x.kind !== last) { h += '<div class="grp" role="presentation">' + (x.kind === "live" ? "Search Alation now" : !q && x.kind === "data source" ? "Entire data source" : esc(x.kind) + 's') + '</div>'; last = x.kind; }
+    h += x.kind === "live"
+      ? '<button type="button" role="option" aria-selected="false" class="live" data-sug="' + i + '"><span class="n">Search live for “' + esc(x.label) + '”</span><span class="m">exact name · reads it from Alation now</span></button>'
+      : '<button type="button" role="option" aria-selected="false" data-sug="' + i + '"><span class="n">' + esc(x.kind === "data source" ? dsShow(x.label) : x.label) + '</span><span class="m">' + (x.kind === "data source" ? "entire data source · " : "") + (x.n ? fmt(x.n) + ' stale owner' + (x.n === 1 ? "" : "s") : "no stale owners") + '</span></button>';
+  });
+  box.innerHTML = h;
+  box.hidden = false; $("#ci").setAttribute("aria-expanded", "true");
+  box.querySelectorAll("[data-sug]").forEach(b => b.onmousedown = e => { e.preventDefault(); pickSug(sugItems[Number(b.dataset.sug)]); $("#ci").focus(); });
+}
+function closeSug() { $("#sug").hidden = true; $("#ci").setAttribute("aria-expanded", "false"); sugAt = -1; }
+function moveSug(d) {
+  const bs = [...$("#sug").querySelectorAll("[data-sug]")]; if (!bs.length) return;
+  sugAt = (sugAt + d + bs.length) % bs.length;
+  bs.forEach((b, i) => b.setAttribute("aria-selected", String(i === sugAt)));
+  bs[sugAt].scrollIntoView({block: "nearest"});
+}
+$("#cbox").onclick = () => $("#ci").focus();
+$("#ci").addEventListener("input", () => { showSug(); renderTags(); table(); });
+$("#ci").addEventListener("focus", () => showSug());
+$("#ci").addEventListener("blur", () => setTimeout(closeSug, 120));
+$("#ci").addEventListener("keydown", e => {
+  if (e.key === "ArrowDown") { e.preventDefault(); if ($("#sug").hidden) showSug(); moveSug(1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); moveSug(-1); }
+  else if (e.key === "Enter" || e.key === ",") {
+    e.preventDefault();
+    if (sugAt >= 0 && sugItems[sugAt]) pickSug(sugItems[sugAt]); else if (draft()) addTerms(draft(), false);
+  }
+  else if (e.key === "Escape") { if (!$("#sug").hidden) closeSug(); else if (draft()) { $("#ci").value = ""; renderTags(); table(); } }
+  else if (e.key === "Backspace" && !e.target.value && terms.length) { terms.pop(); renderTags(); table(); }
+});
+$("#ci").addEventListener("paste", e => { const t = (e.clipboardData || window.clipboardData).getData("text"); if (/[\n\r,;]/.test(t)) { e.preventDefault(); addTerms(t); } });
+$("#f-status").onchange = e => { fStatus = e.target.value; renderTags(); table(); };
+$("#f-risk").onchange = e => { fRisk = e.target.value; renderTags(); table(); };
+$("#clear").onclick = () => { terms = []; selSrc = []; fStatus = fRisk = ""; $("#ci").value = ""; $("#f-status").value = ""; $("#f-risk").value = ""; closeSug(); renderTags(); dsRender(); table(); if (D) livebar(); };
+
+/* data source picker: every data source in the results, chosen from a list */
+function buildSources() {
+  const stale = new Map();
+  D.rows.forEach(r => new Set(r.data_source.concat(r.assets.map(a => a.data_source).filter(Boolean))).forEach(n => { if (!stale.has(n)) stale.set(n, new Set()); stale.get(n).add(r.owner); }));
+  const names = new Set([...IDX.sources.map(x => x.name), ...stale.keys()]);
+  sources = [...names].sort((a, b) => a.localeCompare(b)).map(name => ({name, n: (stale.get(name) || {size: 0}).size, assets: (IDX.sources.find(x => x.name === name) || {}).assets}));
+  selSrc = selSrc.filter(x => sources.some(s => s.name === x));
+}
+function dsRender() {
+  const q = $("#dsf").value.trim().toLowerCase();
+  const list = sources.filter(s => !q || s.name.toLowerCase().includes(q));
+  $("#dsl").innerHTML = list.length ? list.map(s => '<label><input type="checkbox" data-ds="' + esc(s.name) + '"' + (selSrc.includes(s.name) ? " checked" : "") + '><span class="n" title="' + esc(s.name) + '">' + esc(dsShow(s.name)) +
+    '</span><span class="m">' + (s.n ? fmt(s.n) + ' stale owner' + (s.n === 1 ? "" : "s") : "no stale owners") + '</span></label>').join("") : '<div class="none">' + (sources.length ? "No data source matches." : "No data sources yet.") + '</div>';
+  $("#dsl").querySelectorAll("[data-ds]").forEach(c => c.onchange = () => { const n = c.dataset.ds, i = selSrc.indexOf(n); i < 0 ? selSrc.push(n) : selSrc.splice(i, 1); dsRender(); renderTags(); table(); if (D) livebar(); });
+  $("#ds-c").textContent = selSrc.length ? selSrc.length + " of " + sources.length + " selected" : sources.length + " data source" + (sources.length === 1 ? "" : "s");
+  $("#dslabel").textContent = !selSrc.length ? "All data sources" : selSrc.length === 1 ? dsShow(selSrc[0]) : selSrc.length + " data sources";
+  $("#dsbtn").className = selSrc.length ? "on" : "";
+}
+function dsToggle(force) {
+  const p = $("#dsp"), show = force == null ? p.hidden : force;
+  p.hidden = !show; $("#dsbtn").setAttribute("aria-expanded", String(show));
+  if (show) { $("#dsf").value = ""; dsRender(); $("#dsf").focus(); }
+}
+$("#dsbtn").onclick = e => { e.stopPropagation(); dsToggle(); };
+$("#dsf").addEventListener("input", dsRender);
+$("#dsf").addEventListener("keydown", e => { if (e.key === "Escape") { dsToggle(false); $("#dsbtn").focus(); } });
+$("#ds-all").onclick = () => { selSrc = []; dsRender(); renderTags(); table(); if (D) livebar(); };
+document.addEventListener("click", e => { const p = $("#dsp"); if (!p.hidden && !$("#dsb").contains(e.target)) dsToggle(false); });
+
+/* scoped rows: the chosen data sources and the search decide which assets count */
+function scoped() {
+  const ex = exactNames(), ct = containsTerms(), narrowed = ex.length || ct.length || selSrc.length;
+  return D.rows.filter(r => (!fStatus || r.status === fStatus) && (!fRisk || r.risk === fRisk)).map(r => {
+    if (!narrowed) return {r, assets: r.assets, total: r.total, catalogs: r.catalogs, schemas: r.schemas, tables: r.tables, partial: false, approx: false};
+    const assets = r.assets.filter(a => inScope(a.asset, a.data_source, ex, ct));
+    if (!assets.length) return null;
+    return {r, assets, total: assets.length, catalogs: assets.filter(a => a.level === "catalog").length, schemas: assets.filter(a => a.level === "schema").length, tables: assets.filter(a => a.level === "table").length,
+            partial: assets.length < r.total, approx: r.total > r.assets.length};
+  }).filter(Boolean);
+}
+/* an asset is in scope when it is, or sits under, a name that was picked (and in a chosen data source), and contains any typed text */
+function inScope(asset, ds, ex, ct) {
+  const a = String(asset).toLowerCase(), d = String(ds || "").toLowerCase();
+  return (!selSrc.length || selSrc.includes(ds)) && (!ex.length || ex.some(x => a === x || a.startsWith(x + ".") || d === x)) && (!ct.length || ct.some(x => a.includes(x) || d.includes(x)));
+}
+function hl(text) {
+  const t = active().filter(Boolean);
+  if (!t.length) return esc(text);
+  const low = String(text).toLowerCase(); let out = "", i = 0;
+  while (i < text.length) {
+    let best = -1, len = 0;
+    for (const x of t) { const p = low.indexOf(x, i); if (p >= 0 && (best < 0 || p < best || (p === best && x.length > len))) { best = p; len = x.length; } }
+    if (best < 0) { out += esc(text.slice(i)); break; }
+    out += esc(text.slice(i, best)) + "<mark>" + esc(text.slice(best, best + len)) + "</mark>"; i = best + len;
+  }
+  return out;
+}
+
+/* table */
+const statusChip = st => '<span class="chip ' + (st === "Not Found" ? "bad" : st === "Disabled" ? "warn" : "pend") + '">' + ic(st === "Disabled" ? "minus" : "alert") + esc(st) + '</span>';
+const riskChip = r => '<span class="chip ' + (r === "High" ? "bad" : r === "Low" ? "go" : "warn") + '">' + ic(r === "High" ? "alert" : r === "Low" ? "check" : "minus") + esc(r) + '</span>';
+function th(key, label, cls) {
+  const on = sort.key === key;
+  return '<th scope="col" class="' + (cls || "") + '"' + (on ? ' aria-sort="' + (sort.dir > 0 ? "ascending" : "descending") + '"' : "") + '><button type="button" data-sort="' + key + '">' + label +
+    '<span class="ar" aria-hidden="true">' + (on ? (sort.dir > 0 ? "▲" : "▼") : "↕") + '</span></button></th>';
+}
+function nextStep(r) {
+  const head = r.status === "Disabled" ? "The account is disabled." : r.status === "Left company" ? "The account has expired." : "No matching account was found in the directory.";
+  const act = r.risk === "High" ? "First, record a valid owner or steward on the " + fmt(r.no_cover) + " " + noun(r.no_cover) + " that " + (r.no_cover === 1 ? "has" : "have") + " none."
+    : "Replace this owner" + (r.secondary.length ? "; " + r.secondary[0].replace(/ \([OS](, S)?\)$/, "") + " already covers these assets." : ".");
+  const cat = [...new Set((r.assets || []).map(a => a.inherited_from || "").filter(x => /^datasource/i.test(x)).map(x => x.replace(/^datasource\s*/i, "")))];
+  const where = cat.length ? " Some of these inherit their owner from the catalog (" + cat.join(", ") + "): fix the Data Owner on the catalog and they follow." : "";
+  return head + " " + act + where;
+}
+function assetList(v, q) {
+  const f = (q || "").trim().toLowerCase();
+  const list = v.assets.filter(a => !f || a.asset.toLowerCase().includes(f) || (a.data_source || "").toLowerCase().includes(f));
+  if (!list.length) return '<p class="muted">No asset matches.</p>';
+  return '<div class="al"><table><thead><tr><th>Asset</th><th>Level</th><th>Role</th><th>Data source</th><th>Alternative owner</th><th>Coverage</th></tr></thead><tbody>' + list.map(a =>
+    '<tr><td class="p">' + (a.url ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + hl(a.asset) + '</a>' : hl(a.asset)) + ' <button class="cp" type="button" data-copy="' + esc(a.asset) + '" aria-label="Copy ' + esc(a.asset) + '" title="Copy name">' + ic("copy") + '</button></td>' +
+    '<td><span class="lv">' + esc(a.level) + '</span></td><td>' + esc(a.role) + '</td><td>' + hl(dsShow(a.data_source || "")) + '</td><td>' +
+    (a.alternative ? (a.alternative.length ? a.alternative.map(n => '<div>' + person(n) + '</div>').join("") : '<span class="none">None</span>') : '<span class="muted">&ndash;</span>') + '</td><td>' +
+    (a.covered ? '<span class="chip go">' + ic("check") + 'Covered</span>' : '<span class="chip bad">' + ic("alert") + 'No valid owner</span>') + '</td></tr>').join("") + '</tbody></table></div>' +
+    '<p class="sm muted">' + fmt(list.length) + ' of ' + fmt(v.total) + ' ' + noun(v.total) + (v.r.total > v.r.assets.length && !v.partial ? ' · the first ' + fmt(v.r.assets.length) + ' are listed' : "") + '</p>';
+}
+function initials(owner) {
+  const t = String(owner || "").trim();
+  const p = t.includes("@") ? t.split("@")[0].split(/[._-]+/) : t.includes(",") ? t.split(",").map(x => x.trim()).reverse() : t.split(/\s+/);
+  const a = ((p[0] || "")[0] || "") + ((p[1] || "")[0] || "");
+  return esc(a.toUpperCase() || "?");
+}
+function row(v, i) {
+  const r = v.r, isOpen = open.has(r.owner);
+  const src = r.data_source.length ? hl(dsShow(r.data_source[0])) + (r.data_source.length > 1 ? ' <span class="muted">+' + (r.data_source.length - 1) + '</span>' : "") : D.sources_ready ? '<span class="muted">unknown</span>' : '<span class="muted">reading from Alation…</span>';
+  const sec = r.secondary.length ? '<div class="sec">' + r.secondary.map(n => '<span>' + person(n) + '</span>').join("") + '</div>' : '<span class="none">None</span>';
+  const dso = r.ds_owner && r.ds_owner.length ? '<div class="sec">' + r.ds_owner.map(n => '<span>' + person(n) + '</span>').join("") + '</div>' : '<span class="muted">Not recorded</span>';
+  const total = fmt(v.total) + (v.approx ? "+" : "") + (v.partial ? '<div class="sm muted">of ' + fmt(r.total) + '</div>' : "");
+  const unc = v.partial && v.assets.length === v.total ? v.assets.filter(a => !a.covered).length : r.no_cover;
+  let h = '<tr class="row' + (isOpen ? " open" : "") + '"><td><div class="who"><button type="button" class="tog" data-open="' + i + '" aria-expanded="' + isOpen + '" aria-label="' + (isOpen ? "Hide" : "Show") + ' assets of ' + esc(r.owner) + '">' + ic("chev") + '</button><span class="av" aria-hidden="true">' + initials(r.owner) + '</span>' +
+    '<div><div class="nm">' + esc(r.owner) + (r.role_tags ? ' <span class="tgs">' + tagBadges(r.role_tags) + '</span>' : "") + '</div>' + (r.email && r.email !== r.owner ? '<div class="em">' + esc(r.email) + '</div>' : "") + '</div></div></td>' +
+    '<td data-label="Status">' + statusChip(r.status) + '</td><td data-label="Data source"><div class="v">' + src + '</div></td><td data-label="Data source owner / steward"><div class="v">' + dso + '</div></td>' + (D.show_tables ? '<td class="r num" data-label="Assets"><div class="v">' + total + '</div></td>' : "") + (hasCat() ? '<td class="r num" data-label="Catalogs">' + fmt(v.catalogs) + '</td>' : "") + '<td class="r num" data-label="Schemas">' + fmt(v.schemas) +
+    '</td>' + (D.show_tables ? '<td class="r num" data-label="Tables">' + fmt(v.tables) + '</td>' : "") + '<td data-label="Alternative owner"><div class="v">' + sec + '</div></td>' +
+    '<td data-label="Risk"><div class="v">' + riskChip(r.risk) + (unc ? '<div class="muted sm">' + fmt(unc) + ' ' + noun(unc) + ' uncovered</div>' : "") + '</div></td></tr>';
+  if (isOpen) h += '<tr class="det"><td colspan="' + (D.show_tables ? 9 : 8) + '"><div class="dh"><b>Next step</b>' + esc(nextStep(r)) + '</div>' +
+    (v.assets.length > 8 ? '<input class="afind" type="search" data-afind="' + i + '" placeholder="Search these assets" aria-label="Search these assets">' : "") + '<div id="al-' + i + '">' + assetList(v, "") + '</div></td></tr>';
+  return h;
+}
+function counts() {
+  $("#dl").disabled = !shown.length;
+  $("#legend").hidden = !shown.length;                        // the (O) / (S) legend only matters while there are rows
+  const high = shown.filter(v => v.r.risk === "High").length;
+  $("#cn").innerHTML = D.run.id ? '<span class="cnt">' + fmt(shown.length) + ' owner' + (shown.length === 1 ? "" : "s") + '</span><span class="cnt">' + fmt(shown.reduce((n, v) => n + (D.show_tables || hasCat() ? v.total : v.schemas), 0)) +
+    ' ' + noun(shown.reduce((n, v) => n + (D.show_tables || hasCat() ? v.total : v.schemas), 0)) + '</span><span class="cnt ' + (high ? "bad" : "") + '">' + fmt(high) + ' high risk</span>' : "";
+}
+function wireCopy(root) { root.querySelectorAll("[data-copy]").forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast("Copied"); } catch { toast("Copy is not available"); } }); }
+/* paging: shows one page of the (already filtered and sorted) rows; counts, downloads and the filters still use all of them */
+let pageSize = [10, 25, 50, 100].includes(Number(store.get("stale.rows"))) ? Number(store.get("stale.rows")) : 50, pageNo = 0, pageKey = "";
+function pager(total) {
+  const pg = $("#pager"), pages = Math.max(1, Math.ceil(total / pageSize));
+  if (pageNo > pages - 1) pageNo = pages - 1;
+  pg.hidden = total <= 10;                                   // a short list needs no pager
+  if (pg.hidden) return [0, total];
+  const start = pageNo * pageSize, end = Math.min(total, start + pageSize);
+  $("#pg-size").value = String(pageSize);
+  $("#pg-range").textContent = "Showing " + fmt(start + 1) + "–" + fmt(end) + " of " + fmt(total) + " owner" + (total === 1 ? "" : "s");
+  $("#pg-info").textContent = "Page " + fmt(pageNo + 1) + " of " + fmt(pages);
+  $("#pg-prev").disabled = pageNo === 0; $("#pg-next").disabled = pageNo >= pages - 1;
+  return [start, end];
+}
+function goPage(n) { pageNo = n; table(); const t = $("#tw"); if (t.scrollIntoView) t.scrollIntoView({block: "nearest"}); }
+$("#pg-prev").onclick = () => goPage(pageNo - 1);
+$("#pg-next").onclick = () => goPage(pageNo + 1);
+$("#pg-size").onchange = e => { pageSize = Number(e.target.value) || 50; store.set("stale.rows", String(pageSize)); pageNo = 0; table(); };
+function table() {
+  if (!D.rows.length) {
+    shown = []; $("#pager").hidden = true; counts(); $("#export").disabled = true; $("#report").disabled = true;
+    $("#tw").innerHTML = D.run.id ? '<div class="empty"><h3>No stale owners</h3><p>Every owner and steward in the latest results is active in the directory.</p></div>'
+      : '<div class="empty"><h3>Nothing to show yet</h3><p>Run a validation first.</p></div>';
+    return;
+  }
+  const f = SORTS[sort.key] || SORTS.risk;
+  shown = scoped().sort((a, b) => f(a, b) * sort.dir);
+  counts(); $("#export").disabled = !shown.length; $("#report").disabled = !shown.length;
+  const key = JSON.stringify([src, D.run.id, fStatus, fRisk, selSrc, terms.map(t => t.t + "|" + t.exact), shown.length]);
+  if (key !== pageKey) { pageKey = key; pageNo = 0; }       // a new search, filter or data set starts on page 1
+  if (!shown.length) {
+    $("#pager").hidden = true;
+    const ex = exactNames(), ct = containsTerms(), inSc = IDX.assets.filter(([name, , ds]) => inScope(name, ds, ex, ct)).length;
+    const known = src === "live" && IDX.assets.length && (ex.length || ct.length || selSrc.length);
+    $("#tw").innerHTML = '<div class="empty"><h3>' + (known && inSc ? "No stale owners in this scope" : "No stale owner matches") + '</h3><p>' +
+      (known && inSc ? fmt(inSc) + " asset" + (inSc === 1 ? "" : "s") + " read from Alation in this scope, and every owner and steward is valid." : "Nothing in the data sources" + (D.show_tables ? ", schemas or tables" : " or schemas") + " you chose has a stale owner.") +
+      '</p><p><button class="qb" id="reset" type="button">Clear search and filters</button></p></div>';
+    $("#reset").onclick = () => $("#clear").onclick(); return;
+  }
+  $("#tw").innerHTML = '<table><thead><tr>' + th("owner", "Owner") + th("status", "Status") + th("source", "Data source") + '<th scope="col" title="(O) owner · (S) steward">Data source owner / steward</th>' + (D.show_tables ? th("total", "Assets", "r") : "") + (hasCat() ? th("catalogs", "Catalogs", "r") : "") + th("schemas", "Schemas", "r") + (D.show_tables ? th("tables", "Tables", "r") : "") +   /* table level is switched off on the server (stale_table.SHOW_TABLE_LEVEL) */
+    '<th scope="col">Alternative owner</th>' + th("risk", "Risk") + '</tr></thead><tbody>' + (([from, to]) => shown.slice(from, to).map((v, k) => row(v, from + k)).join(""))(pager(shown.length)) + '</tbody></table>';
+  $("#tw").querySelectorAll("[data-sort]").forEach(b => b.onclick = () => {
+    const k = b.dataset.sort; sort.dir = sort.key === k ? -sort.dir : (["owner", "status", "source", "risk"].includes(k) ? 1 : -1); sort.key = k; pageNo = 0;
+    store.set("stale.sort", JSON.stringify(sort)); table();
+  });
+  $("#tw").querySelectorAll("[data-open]").forEach(b => b.onclick = () => { const o = shown[Number(b.dataset.open)].r.owner; open.has(o) ? open.delete(o) : open.add(o); table(); });
+  $("#tw").querySelectorAll("tr.row").forEach(tr => tr.addEventListener("click", e => { if (!e.target.closest("a, button, input, select")) tr.querySelector("[data-open]").click(); }));
+  $("#tw").querySelectorAll("[data-afind]").forEach(inp => inp.oninput = () => { const i = Number(inp.dataset.afind); $("#al-" + i).innerHTML = assetList(shown[i], inp.value); wireCopy($("#al-" + i)); });
+  wireCopy($("#tw"));
+}
+
+/* live read of Alation */
+function liveNames() {
+  const names = selSrc.concat(terms.filter(t => t.exact).map(t => t.t));
+  if (draft()) names.push(draft());
+  return [...new Set(names)];
+}
+function livebar() {
+  const l = D.live, running = l.status === "running" || l.status === "queued", names = liveNames();
+  const scope = D.run.scope && D.run.scope !== "Entire catalog" ? " · " + String(D.run.scope).split(", ").map(dsShow).join(", ") : "";
+  $("#srcline").textContent = src === "live" ? "Live from Alation · " + when(D.run.finished) + scope : "Latest validation · " + when(D.run.finished || D.run.created);
+  $("#lb-dot").className = "lb-dot " + (running ? "run" : src === "live" ? "live" : "");
+  $("#live").hidden = running; $("#prog").hidden = !running;
+  $("#live").textContent = names.length ? "Search live" : "Check whole catalog";
+  $("#live-cancel").hidden = !running; $("#back").hidden = src !== "live" || running;
+  const msg = $("#lb-msg"), failed = l.status === "failed";
+  msg.hidden = !(running || failed || l.warning);
+  msg.className = "lb-msg" + (failed ? " bad" : "");
+  msg.innerHTML = running ? '<span class="spin"></span> ' + esc(l.message || "Working…") : failed ? esc(l.error || "The live check failed") : esc(l.warning || "");
+  $("#lb-note").textContent = running ? "" : names.length ? "· Search live reads only what you chose" : "· reads the whole catalog, about 2–3 minutes";
+}
+async function startLive() {
+  if (draft()) addTerms(draft(), true, "name");              // text typed but not chosen is looked up by its exact name
+  const names = liveNames();
+  try {
+    const res = await fetch("/api/owners/stale/live", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({names})});
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(j.error || "The live search could not start"); return; }
+    wasRunning = true; load(false);
+  } catch (e) { toast("The live search could not start: " + e.message); }
+}
+$("#live").onclick = startLive;
+$("#live-cancel").onclick = () => fetch("/api/owners/stale/live/cancel", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"}).then(() => load(false)).catch(() => {});
+$("#back").onclick = () => { src = "latest"; load(true); };
+
+/* report: an Excel workbook of what is shown, with the same filters */
+async function generateReport() {
+  const p = new URLSearchParams();
+  p.set("source", src);
+  selSrc.forEach(x => p.append("ds", x));
+  terms.filter(t => t.exact).forEach(t => p.append("name", t.t));
+  terms.filter(t => !t.exact).forEach(t => p.append("q", t.t));
+  if (draft()) p.append("q", draft());
+  if (fStatus) p.set("status", fStatus);
+  if (fRisk) p.set("risk", fRisk);
+  $("#report").disabled = true;
+  try {
+    const res = await fetch("/api/owners/stale/report?" + p.toString());
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || res.statusText); }
+    const blob = await res.blob();
+    const name = ((res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/) || [])[1] || "stale-owners.xlsx";
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove();
+    toast("Report downloaded");
+  } catch (e) { toast("The report could not be created: " + e.message); }
+  $("#report").disabled = !shown.length;
+}
+$("#report").onclick = generateReport;
+
+/* Esc closes the about popover */
+document.addEventListener("keydown", e => { const pp = $("#pop"); if (e.key === "Escape" && !pp.hidden) { pp.hidden = true; $("#info").setAttribute("aria-expanded", "false"); $("#info").focus(); } });
+
+/* download menu */
+function dlToggle(force) { const m = $("#dlm"), show = force == null ? m.hidden : force; m.hidden = !show; $("#dl").setAttribute("aria-expanded", String(show)); }
+$("#dl").onclick = e => { e.stopPropagation(); dlToggle(); };
+$("#report").addEventListener("click", () => dlToggle(false));
+$("#export").addEventListener("click", () => dlToggle(false));
+document.addEventListener("click", e => { const m = $("#dlm"); if (!m.hidden && !m.contains(e.target)) dlToggle(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#dlm").hidden) { dlToggle(false); $("#dl").focus(); } });
+
+/* export */
+$("#export").onclick = () => {
+  const q = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const head = ["Owner", "Email", "Status", "Data source", "Data source owner / steward", ...(D.show_tables ? ["Assets"] : []), ...(hasCat() ? ["Catalogs"] : []), "Schemas", ...(D.show_tables ? ["Tables"] : []), "Alternative owner", "Risk", (D.show_tables || hasCat() ? "Assets" : "Schemas") + " with no valid owner"];
+  const lines = [head.map(q).join(",")].concat(shown.map(v => [v.r.owner + (v.r.role_tags ? " (" + v.r.role_tags + ")" : ""), v.r.email, v.r.status, v.r.data_source.join("; "), (v.r.ds_owner || []).join("; "), ...(D.show_tables ? [v.total] : []), ...(hasCat() ? [v.catalogs] : []), v.schemas, ...(D.show_tables ? [v.tables] : []),
+    v.r.secondary.join("; "), v.r.risk, v.r.no_cover].map(q).join(",")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], {type: "text/csv;charset=utf-8"}));
+  a.download = "stale-owners.csv"; document.body.append(a); a.click(); a.remove();
+};
+
+function filterOptions() {
+  const st = [...new Set(D.rows.map(r => r.status))].sort(), sel = $("#f-status");
+  if (sel.options && sel.options.length === st.length + 1) return;
+  sel.innerHTML = '<option value="">All statuses</option>' + st.map(s => '<option>' + esc(s) + '</option>').join(""); sel.value = fStatus;
+}
+function render() { chips(); banner(); stamp(); livebar(); buildIndex(); buildSources(); dsRender(); filterOptions(); renderTags(); table(); }
+// UC Concierge, the suite's front door, opens /stale-owners?q=<request>&from=concierge (canonical copy of these two
+// functions: uc-concierge-front-door/agent-patches/prefill/concierge-prefill.js).
+// --- UC Concierge hand-off
+function takeConciergeRequest(href) {
+  const url = new URL(href);
+  if (url.searchParams.get("from") !== "concierge") return null;
+  const q = (url.searchParams.get("q") || "").trim();
+  if (!q) return null;
+  url.searchParams.delete("q");
+  url.searchParams.delete("from");
+  return { q, cleanUrl: url.pathname + url.search + url.hash };
+}
+function fitRequest(q, maxLength) {
+  if (!maxLength || q.length <= maxLength) return { text: q, cut: false };
+  return { text: q.slice(0, maxLength), cut: true };
+}
+// --- end UC Concierge hand-off
+// This page is review-driven, so the request is shown, not used as a filter (a whole sentence would match nothing).
+function conciergeHandoff() {
+  const handoff = takeConciergeRequest(location.href);
+  if (!handoff) return;
+  history.replaceState(null, "", handoff.cleanUrl);
+  const note = document.createElement("div");
+  note.className = "banner concierge-note";
+  note.setAttribute("role", "status");
+  const b = document.createElement("b");
+  b.textContent = "Request from UC Concierge: ";
+  note.append(b, document.createTextNode("“" + fitRequest(handoff.q, 300).text + "”. Search a data source or schema below to check its owners."));
+  $("#banner").after(note);
+  $("#ci").focus();
+}
+
+load(false);
+conciergeHandoff();
+</script>
+</body>
+</html>

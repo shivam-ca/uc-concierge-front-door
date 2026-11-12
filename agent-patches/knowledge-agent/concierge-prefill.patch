@@ -1,0 +1,93 @@
+diff --git a/web/chat/index.html b/web/chat/index.html
+index f22e5ae..d1eb4ed 100644
+--- a/web/chat/index.html
++++ b/web/chat/index.html
+@@ -590,6 +590,35 @@ function track(id, started) {
+     await loadList(); if (CURID === id) await loadCurrent(true);
+   });
+ }
++// UC Concierge, the suite's front door, opens /chat?q=<request>&from=concierge (canonical copy of these two functions:
++// uc-concierge-front-door/agent-patches/prefill/concierge-prefill.js).
++// --- UC Concierge hand-off
++function takeConciergeRequest(href) {
++  const url = new URL(href);
++  if (url.searchParams.get("from") !== "concierge") return null;
++  const q = (url.searchParams.get("q") || "").trim();
++  if (!q) return null;
++  url.searchParams.delete("q");
++  url.searchParams.delete("from");
++  return { q, cleanUrl: url.pathname + url.search + url.hash };
++}
++function fitRequest(q, maxLength) {
++  if (!maxLength || q.length <= maxLength) return { text: q, cut: false };
++  return { text: q.slice(0, maxLength), cut: true };
++}
++// --- end UC Concierge hand-off
++// Asks the handed-over question once, always as a new chat; the address loses q/from first, so a reload never asks again.
++function conciergeHandoff() {
++  const handoff = takeConciergeRequest(location.href);
++  if (!handoff) return;
++  history.replaceState(null, "", handoff.cleanUrl);
++  if (CURID) { CURID = ""; CUR = null; history.replaceState(null, "", location.pathname); renderThread(); renderSide(); }
++  const ta = $("#msgtext");
++  const fit = fitRequest(handoff.q, Number(ta?.getAttribute("maxlength")) || 4000);
++  toast(fit.cut ? "From UC Concierge. Your question was shortened to fit; check it, then send." : "From UC Concierge");
++  if (fit.cut) { if (ta) { ta.value = fit.text; ta.focus(); } return; }
++  send(fit.text);
++}
+ async function send(textArg) {
+   const ta = $("#msgtext"), text = (textArg ?? ta?.value ?? "").trim(); if (!text) return;
+   if (ta) { ta.value = ""; ta.style.height = ""; }
+@@ -754,6 +783,7 @@ ROLE = "user";
+   applyLayout();
+   await loadStatus(); await loadList(); applyRole();
+   if (CURID) { $("#app").classList.add("reading"); await loadCurrent(false); } else { renderThread(); renderSide(); }
++  conciergeHandoff();
+ })();
+ </script>
+ </body>
+diff --git a/web/stale-owners/index.html b/web/stale-owners/index.html
+index 981d802..b06cab2 100644
+--- a/web/stale-owners/index.html
++++ b/web/stale-owners/index.html
+@@ -967,7 +967,40 @@ function filterOptions() {
+   sel.innerHTML = '<option value="">All statuses</option>' + st.map(s => '<option>' + esc(s) + '</option>').join(""); sel.value = fStatus;
+ }
+ function render() { chips(); banner(); stamp(); livebar(); buildIndex(); buildSources(); dsRender(); filterOptions(); renderTags(); table(); }
++// UC Concierge, the suite's front door, opens /stale-owners?q=<request>&from=concierge (canonical copy of these two
++// functions: uc-concierge-front-door/agent-patches/prefill/concierge-prefill.js).
++// --- UC Concierge hand-off
++function takeConciergeRequest(href) {
++  const url = new URL(href);
++  if (url.searchParams.get("from") !== "concierge") return null;
++  const q = (url.searchParams.get("q") || "").trim();
++  if (!q) return null;
++  url.searchParams.delete("q");
++  url.searchParams.delete("from");
++  return { q, cleanUrl: url.pathname + url.search + url.hash };
++}
++function fitRequest(q, maxLength) {
++  if (!maxLength || q.length <= maxLength) return { text: q, cut: false };
++  return { text: q.slice(0, maxLength), cut: true };
++}
++// --- end UC Concierge hand-off
++// This page is review-driven, so the request is shown, not used as a filter (a whole sentence would match nothing).
++function conciergeHandoff() {
++  const handoff = takeConciergeRequest(location.href);
++  if (!handoff) return;
++  history.replaceState(null, "", handoff.cleanUrl);
++  const note = document.createElement("div");
++  note.className = "banner concierge-note";
++  note.setAttribute("role", "status");
++  const b = document.createElement("b");
++  b.textContent = "Request from UC Concierge: ";
++  note.append(b, document.createTextNode("“" + fitRequest(handoff.q, 300).text + "”. Search a data source or schema below to check its owners."));
++  $("#banner").after(note);
++  $("#ci").focus();
++}
++
+ load(false);
++conciergeHandoff();
+ </script>
+ </body>
+ </html>
