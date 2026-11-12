@@ -49,3 +49,19 @@ describe('findPortClashes', () => {
     expect(findPortClashes({ a: 'http://localhost:1/', b: 'http://127.0.0.1:1/', c: null, d: 'bad' })).toEqual([]);
   });
 });
+
+import { urlProblem } from '../src/lib/agentUrl.js';
+describe('urlProblem (Settings validation)', () => {
+  it('accepts blank (use default) and http(s) URLs', () => {
+    expect(urlProblem('')).toBeNull();
+    expect(urlProblem('  ')).toBeNull();
+    expect(urlProblem('http://127.0.0.1:8767/chat')).toBeNull();
+    expect(urlProblem('https://agents.example.com/onboarding')).toBeNull();
+  });
+  it('explains what is wrong otherwise', () => {
+    expect(urlProblem('127.0.0.1:8767')).toMatch(/http/);
+    expect(urlProblem('localhost')).toMatch(/http/);
+    expect(urlProblem('ftp://x/')).toMatch(/http/);
+    expect(urlProblem('javascript:alert(1)')).toMatch(/http/);
+  });
+});

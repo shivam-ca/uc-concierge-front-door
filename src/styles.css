@@ -188,6 +188,8 @@ main.page { flex: 1; width: min(1120px, 100%); margin: 0 auto; padding: 8px clam
 @media (max-width: 480px) { .tiles-5 { grid-template-columns: 1fr; } }
 .tile { padding: 18px; display: flex; flex-direction: column; gap: 10px; min-height: 150px; overflow: hidden; }
 .tile p { color: var(--muted); font-size: 13.5px; }
+.tile-title h2 { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+.tile-title small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .tile .tile-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .tile ul { margin: 0; padding-left: 18px; color: #c9cddc; font-size: 13px; display: grid; gap: 3px; }
 .shine { position: absolute; inset: auto -30% -60% auto; width: 70%; height: 90%; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--c) 40%, transparent), transparent 70%); filter: blur(30px); opacity: .35; z-index: 0 !important; pointer-events: none; transition: opacity .3s; }

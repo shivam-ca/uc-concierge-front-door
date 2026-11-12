@@ -34,3 +34,13 @@ export function findPortClashes(urlsById) {
   }
   return [...byHost].filter(([, ids]) => ids.length > 1).map(([hostPort, ids]) => ({ hostPort, ids }));
 }
+
+/** Settings validation: null when the value is usable (blank means "use the default"), otherwise a short fix-it message. */
+export function urlProblem(value) {
+  const v = typeof value === 'string' ? value.trim() : '';
+  if (!v) return null;
+  let u;
+  try { u = new URL(v); } catch { return 'Enter a full address starting with http:// or https://'; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Enter a full address starting with http:// or https://';
+  return null;
+}
