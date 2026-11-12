@@ -283,3 +283,35 @@ main.page { flex: 1; width: min(1120px, 100%); margin: 0 auto; padding: 8px clam
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
   .aurora i { animation: none; }
 }
+
+/* ---------- Default view size: the app opens at 75% ---------- */
+html { zoom: 0.75; }
+.app { min-height: calc(100vh / 0.75); }
+
+/* ---------- History and Logs ---------- */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.log-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.log-search { position: relative; flex: 1 1 260px; max-width: 380px; }
+.log-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.log-search .field { padding-left: 34px; }
+.chips-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: rgba(139,132,255,.18); color: #fff; }
+.log-status { margin: 14px 0 10px; font-size: 13px; }
+.log-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hist { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 14px 18px; }
+.hist-q { margin: 0; font-size: 15.5px; font-weight: 600; overflow-wrap: anywhere; }
+.hist-meta { gap: 8px 12px; margin-top: 6px; }
+.hist-why { margin: 6px 0 0; }
+.logs-panel { padding: 6px 18px; }
+.log-lines { list-style: none; margin: 0; padding: 0; }
+.log-line { display: grid; grid-template-columns: 170px 62px 1fr; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.log-line:last-child { border-bottom: 0; }
+.log-line time { color: var(--muted); font-size: 12px; }
+.log-msg { overflow-wrap: anywhere; }
+.lvl-error .log-msg { color: #ffb4b4; }
+@media (max-width: 640px) {
+  .hist { grid-template-columns: auto 1fr; }
+  .hist .btn { grid-column: 1 / -1; justify-self: start; }
+  .log-line { grid-template-columns: 1fr auto; }
+  .log-line time { grid-column: 1 / -1; }
+}

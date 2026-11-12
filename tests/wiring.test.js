@@ -25,3 +25,18 @@ describe('accessibility wiring', () => {
     expect(src('views/Home.jsx')).toMatch(/disabled=\{!text\.trim\(\) \|\| busy\}/);
   });
 });
+
+describe('default zoom and activity pages', () => {
+  it('opens at 75% zoom and sizes the app to fill the viewport at that zoom', () => {
+    const css = src('styles.css');
+    expect(css).toMatch(/html \{ zoom: 0\.75; \}/);
+    expect(css).toMatch(/\.app \{ min-height: calc\(100vh \/ 0\.75\); \}/);
+  });
+  it('History and Logs are routed and in the nav', () => {
+    const app = src('App.jsx');
+    expect(app).toMatch(/hash === 'history'/);
+    expect(app).toMatch(/hash === 'logs'/);
+    expect(app).toContain('href="#history"');
+    expect(app).toContain('href="#logs"');
+  });
+});
