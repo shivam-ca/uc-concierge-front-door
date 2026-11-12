@@ -40,7 +40,7 @@ export default function Results({ query, decision, blocked, hasUrl, onOpen, onRe
 
         {opened && <p className="note info" role="status"><Info size={14} aria-hidden="true" style={{ verticalAlign: '-2px' }} /> {agent.short} opened in a new tab with your request. Your request is also on your clipboard.</p>}
         {blocked && <p className="note" role="alert">Your browser blocked the new tab. Use the button below to open {agent.short}.</p>}
-        {low && <p className="note">{decision.alternatives.length ? 'This request could fit more than one agent' : 'The Orchestrator isn’t sure which agent fits this'}, so nothing opened automatically. Pick one here or in the new tab, or rephrase your request.</p>}
+        {low && <p className="note">{decision.alternatives.length ? 'This request could fit more than one agent' : 'The Orchestrator isn’t sure which agent fits this'}, so you choose: pick one here or in the new tab, or rephrase your request.</p>}
         {decision.fallback && <p className="note">The AI router wasn’t available, so keyword rules picked this agent. Check the other options if it looks wrong.</p>}
 
         <div className="row">

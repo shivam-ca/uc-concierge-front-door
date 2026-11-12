@@ -31,7 +31,10 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), devApi(env)],
     build: {
       outDir: 'dist',
-      rollupOptions: { input: { main: resolve('index.html'), handoff: resolve('handoff.html') } },
+      rollupOptions: {
+        input: { main: resolve('index.html'), handoff: resolve('handoff.html') },
+        output: { manualChunks: (id) => (id.includes('node_modules') ? 'vendor' : undefined) },
+      },
     },
   };
 });
