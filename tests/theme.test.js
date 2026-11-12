@@ -6,22 +6,27 @@ const mem = () => { const m = new Map(); return { getItem: k => m.get(k) ?? null
 const boom = { getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); } };
 
 describe('theme', () => {
-  it('defaults to dark, remembers light, ignores junk', () => {
+  it('defaults to light, remembers dark, ignores junk', () => {
     const s = mem();
-    expect(loadTheme(s)).toBe('dark');
-    saveTheme('light', s);
     expect(loadTheme(s)).toBe('light');
-    s.setItem('uc-concierge-theme', 'neon');
+    saveTheme('dark', s);
     expect(loadTheme(s)).toBe('dark');
+    s.setItem('uc-concierge-theme', 'neon');
+    expect(loadTheme(s)).toBe('light');
   });
   it('survives broken storage', () => {
-    expect(loadTheme(boom)).toBe('dark');
-    expect(() => saveTheme('light', boom)).not.toThrow();
+    expect(loadTheme(boom)).toBe('light');
+    expect(() => saveTheme('dark', boom)).not.toThrow();
   });
   it('applies to the root element', () => {
     const attrs = {};
     applyTheme('light', { setAttribute: (k, v) => { attrs[k] = v; } });
     expect(attrs['data-theme']).toBe('light');
+  });
+  it('both pages start in light before the script runs', () => {
+    for (const f of ['index.html', 'handoff.html']) {
+      expect(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')).toContain('<html lang="en" data-theme="light">');
+    }
   });
   it('both pages set the saved theme before first paint, with the same key', () => {
     for (const f of ['index.html', 'handoff.html']) {

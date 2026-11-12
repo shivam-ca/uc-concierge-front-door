@@ -1,9 +1,9 @@
-// Light/dark preference, per browser. Dark stays the default; storage can be missing or throw.
+// Light/dark preference, per browser. Light is the default; storage can be missing or throw.
 const KEY = 'uc-concierge-theme';
 export const THEMES = ['dark', 'light'];
 
 export function loadTheme(storage = globalThis.localStorage) {
-  try { const v = storage?.getItem(KEY); return THEMES.includes(v) ? v : 'dark'; } catch { return 'dark'; }
+  try { const v = storage?.getItem(KEY); return THEMES.includes(v) ? v : 'light'; } catch { return 'light'; }
 }
 
 export function saveTheme(theme, storage = globalThis.localStorage) {
