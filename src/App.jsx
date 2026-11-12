@@ -10,6 +10,8 @@ import History from './views/History.jsx';
 import Logs from './views/Logs.jsx';
 import { loadLog, addEntry, markOpened, clearLog } from './lib/activityLog.js';
 import { getAgent } from './config/agents.js';
+import { loadTheme, saveTheme, applyTheme } from './lib/theme.js';
+import { Moon, Sun } from 'lucide-react';
 import { loadSettings, saveSettings } from './lib/settings.js';
 import { routeRequest } from './lib/routeClient.js';
 import { newNonce, openHandoffTab, publishDecision } from './lib/handoffChannel.js';
@@ -34,6 +36,9 @@ export default function App() {
   const hash = useHash();
   const [settings, setSettingsState] = useState(loadSettings);
   const setSettings = (s) => { setSettingsState(s); saveSettings(s); log({ type: 'settings', message: 'Settings saved (agent addresses and passcode are stored in this browser).' }); };
+  const [theme, setTheme] = useState(loadTheme);
+  useEffect(() => { applyTheme(theme); }, [theme]);
+  const toggleTheme = () => { const next = theme === 'light' ? 'dark' : 'light'; setTheme(next); saveTheme(next); };
   const [activity, setActivityState] = useState(loadLog);
   const activityRef = useRef(activity); // the latest list, readable synchronously (state updaters run later)
   const setActivity = (next) => { activityRef.current = next; setActivityState(next); };
@@ -114,9 +119,15 @@ export default function App() {
           <a href="#agents" aria-current={hash === 'agents' ? 'page' : undefined}>Agents</a>
           <a href="#settings" aria-current={hash === 'settings' ? 'page' : undefined}>Settings</a>
         </nav>
+        <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
+          {theme === 'light' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
+        </button>
       </header>
       <main className="page" id="main" tabIndex={-1}>{view}</main>
-      <footer className="foot">UC Concierge Suite · Requests go to the agent you pick; the Orchestrator only decides where.</footer>
+      <footer className="foot">
+        <span className="foot-logos"><img src="/brand/kroger.png" alt="Kroger" height="26" /><img src="/brand/8451.png" alt="84.51°" height="18" /></span>
+        <span>UC Concierge Suite · Requests go to the agent you pick; the Orchestrator only decides where.</span>
+      </footer>
       <Toast message={toast} onDone={clearToast} />
     </div>
   );

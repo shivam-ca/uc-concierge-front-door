@@ -40,3 +40,13 @@ describe('default zoom and activity pages', () => {
     expect(app).toContain('href="#logs"');
   });
 });
+
+describe('light theme and doorway signature', () => {
+  it('has a top-bar toggle, a light block on data-theme, and the arch + threshold signature', () => {
+    expect(src('App.jsx')).toContain('className="theme-toggle"');
+    const css = src('styles.css');
+    expect(css).toMatch(/html\[data-theme="light"\] \{[^}]*--accent: #1f4fa3/);
+    expect(css).toContain('.hero::before');
+    expect(css).toContain('.search-form::after');
+  });
+});
