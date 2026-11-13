@@ -30,3 +30,12 @@ describe('fitRequest', () => {
     expect(r.cut).toBe(true);
   });
 });
+
+describe('takeConciergeRequest with a LangSmith trace', () => {
+  it('returns the trace headers and strips them from the address', async () => {
+    const { buildAgentUrl } = await import('../src/lib/agentUrl.js');
+    const trace = { 'langsmith-trace': '20261113T081013869001Z01a1d3f5-09ed-7000-8000-006ec3bdaaff', baggage: 'langsmith-project=uc-concierge-suite' };
+    expect(takeConciergeRequest(buildAgentUrl('http://127.0.0.1:8784/onboarding-agent?x=1', 'new catalog', trace)))
+      .toEqual({ q: 'new catalog', cleanUrl: '/onboarding-agent?x=1', trace });
+  });
+});

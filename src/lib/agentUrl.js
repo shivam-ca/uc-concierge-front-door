@@ -1,4 +1,5 @@
 import { getAgent } from '../config/agents.js';
+import { cleanTrace, TRACE_PARAM, BAGGAGE_PARAM } from './traceContext.js';
 
 // A usable candidate: non-blank and a valid http(s) address. Anything else falls through to the next source.
 const clean = (v) => (typeof v === 'string' && v.trim() && !urlProblem(v) ? v.trim() : null);
@@ -10,16 +11,27 @@ export function resolveAgentUrl(id, { settings = {}, env = {} } = {}) {
   return clean(settings.urls?.[id]) ?? clean(env[`VITE_AGENT_URL_${id.toUpperCase()}`]) ?? agent.defaultUrl ?? null;
 }
 
-/** Adds q and from=concierge, keeping any existing query and hash. Null for missing, malformed or non-http(s) URLs. */
-export function buildAgentUrl(baseUrl, query) {
+/**
+ * Adds q and from=concierge, keeping any existing query and hash. Null for missing, malformed or non-http(s) URLs.
+ * trace: the request's LangSmith headers (from /api/route); when well-formed they ride along as lstrace/lsbaggage so the
+ * agent's runs join the same trace.
+ */
+export function buildAgentUrl(baseUrl, query, trace = null) {
   if (!baseUrl) return null;
   let url;
   try { url = new URL(baseUrl); } catch { return null; }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
   url.searchParams.delete('q');
   url.searchParams.delete('from');
+  url.searchParams.delete(TRACE_PARAM);
+  url.searchParams.delete(BAGGAGE_PARAM);
   url.searchParams.set('q', query);
   url.searchParams.set('from', 'concierge');
+  const t = cleanTrace(trace);
+  if (t) {
+    url.searchParams.set(TRACE_PARAM, t['langsmith-trace']);
+    if (t.baggage) url.searchParams.set(BAGGAGE_PARAM, t.baggage);
+  }
   return url.toString();
 }
 

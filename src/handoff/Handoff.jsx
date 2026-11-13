@@ -49,7 +49,7 @@ export default function Handoff() {
   }, [plan, stay]);
 
   const go = (agent) => {
-    const url = buildAgentUrl(payload?.urls?.[agent] ?? null, payload?.query ?? '');
+    const url = buildAgentUrl(payload?.urls?.[agent] ?? null, payload?.query ?? '', payload?.decision?.trace);
     if (url) location.replace(url);
     else { setStay(true); setPlan({ kind: 'soon', agent }); }
   };

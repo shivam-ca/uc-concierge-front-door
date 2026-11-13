@@ -83,7 +83,7 @@ export default function App() {
   };
 
   const onOpen = (id) => {
-    const url = buildAgentUrl(urlFor(id), state.query);
+    const url = buildAgentUrl(urlFor(id), state.query, state.decision?.trace);
     if (url) window.open(url, '_blank', 'noopener');
     else location.hash = `soon/${id}`;
     log({ type: 'open', agent: id, query: state.query, message: url ? `Opened ${getAgent(id).short} with the request.` : `${getAgent(id).short} has no app yet; showed the coming-soon page.` });

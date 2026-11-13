@@ -975,9 +975,12 @@ function takeConciergeRequest(href) {
   if (url.searchParams.get("from") !== "concierge") return null;
   const q = (url.searchParams.get("q") || "").trim();
   if (!q) return null;
-  url.searchParams.delete("q");
-  url.searchParams.delete("from");
-  return { q, cleanUrl: url.pathname + url.search + url.hash };
+  const lstrace = url.searchParams.get("lstrace") || "";
+  const lsbaggage = url.searchParams.get("lsbaggage") || "";
+  for (const name of ["q", "from", "lstrace", "lsbaggage"]) url.searchParams.delete(name);
+  const out = { q, cleanUrl: url.pathname + url.search + url.hash };
+  if (lstrace) out.trace = { "langsmith-trace": lstrace, baggage: lsbaggage };
+  return out;
 }
 function fitRequest(q, maxLength) {
   if (!maxLength || q.length <= maxLength) return { text: q, cut: false };

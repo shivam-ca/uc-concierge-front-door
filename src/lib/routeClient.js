@@ -1,5 +1,6 @@
 import { keywordRoute } from './keywordRouter.js';
 import { normalizeDecision } from './normalize.js';
+import { cleanTrace } from './traceContext.js';
 
 const local = (query) => ({ decision: normalizeDecision(keywordRoute(query), { provider: 'keywords-local', model: null, fallback: true, ms: 0 }) });
 
@@ -31,6 +32,7 @@ export async function routeRequest(query, { fetchFn = (...a) => fetch(...a), pas
   if (res.status === 429) return { error: 'rate', message: json?.error || 'Too many requests. Try again in a minute.' };
   if (res.status === 400) return { error: 'input', message: json?.error || 'Check your request and try again.' };
   if (!res.ok || !json) return local(query);
-  const d = normalizeDecision(json, { provider: String(json.provider || 'unknown'), model: json.model ?? null, fallback: Boolean(json.fallback), ms: Number(json.ms) || 0 });
+  const trace = cleanTrace(json.trace);
+  const d = normalizeDecision(json, { provider: String(json.provider || 'unknown'), model: json.model ?? null, fallback: Boolean(json.fallback), ms: Number(json.ms) || 0, ...(trace ? { trace } : {}) });
   return d ? { decision: d } : local(query);
 }

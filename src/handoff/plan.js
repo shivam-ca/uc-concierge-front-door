@@ -12,6 +12,6 @@ export function planHandoff(payload) {
   const { query, decision, urls = {} } = payload;
   if (!decision || !getAgent(decision.agent)) return { kind: 'error', message: 'No agent was chosen. Go back to UC Concierge and try again.' };
   if (decision.confidence < CONFIDENCE_THRESHOLD) return { kind: 'choose', choices: [decision, ...choicesFor(decision)] };
-  const url = buildAgentUrl(urls[decision.agent] ?? null, query);
+  const url = buildAgentUrl(urls[decision.agent] ?? null, query, decision.trace);
   return url ? { kind: 'redirect', agent: decision.agent, url } : { kind: 'soon', agent: decision.agent };
 }

@@ -2,7 +2,7 @@ diff --git a/web/chat/index.html b/web/chat/index.html
 index f22e5ae..d1eb4ed 100644
 --- a/web/chat/index.html
 +++ b/web/chat/index.html
-@@ -590,6 +590,35 @@ function track(id, started) {
+@@ -590,6 +590,38 @@ function track(id, started) {
      await loadList(); if (CURID === id) await loadCurrent(true);
    });
  }
@@ -14,9 +14,12 @@ index f22e5ae..d1eb4ed 100644
 +  if (url.searchParams.get("from") !== "concierge") return null;
 +  const q = (url.searchParams.get("q") || "").trim();
 +  if (!q) return null;
-+  url.searchParams.delete("q");
-+  url.searchParams.delete("from");
-+  return { q, cleanUrl: url.pathname + url.search + url.hash };
++  const lstrace = url.searchParams.get("lstrace") || "";
++  const lsbaggage = url.searchParams.get("lsbaggage") || "";
++  for (const name of ["q", "from", "lstrace", "lsbaggage"]) url.searchParams.delete(name);
++  const out = { q, cleanUrl: url.pathname + url.search + url.hash };
++  if (lstrace) out.trace = { "langsmith-trace": lstrace, baggage: lsbaggage };
++  return out;
 +}
 +function fitRequest(q, maxLength) {
 +  if (!maxLength || q.length <= maxLength) return { text: q, cut: false };
@@ -38,7 +41,7 @@ index f22e5ae..d1eb4ed 100644
  async function send(textArg) {
    const ta = $("#msgtext"), text = (textArg ?? ta?.value ?? "").trim(); if (!text) return;
    if (ta) { ta.value = ""; ta.style.height = ""; }
-@@ -754,6 +783,7 @@ ROLE = "user";
+@@ -754,6 +786,7 @@ ROLE = "user";
    applyLayout();
    await loadStatus(); await loadList(); applyRole();
    if (CURID) { $("#app").classList.add("reading"); await loadCurrent(false); } else { renderThread(); renderSide(); }
@@ -50,7 +53,7 @@ diff --git a/web/stale-owners/index.html b/web/stale-owners/index.html
 index 981d802..6d9d903 100644
 --- a/web/stale-owners/index.html
 +++ b/web/stale-owners/index.html
-@@ -967,7 +967,41 @@ function filterOptions() {
+@@ -967,7 +967,44 @@ function filterOptions() {
    sel.innerHTML = '<option value="">All statuses</option>' + st.map(s => '<option>' + esc(s) + '</option>').join(""); sel.value = fStatus;
  }
  function render() { chips(); banner(); stamp(); livebar(); buildIndex(); buildSources(); dsRender(); filterOptions(); renderTags(); table(); }
@@ -62,9 +65,12 @@ index 981d802..6d9d903 100644
 +  if (url.searchParams.get("from") !== "concierge") return null;
 +  const q = (url.searchParams.get("q") || "").trim();
 +  if (!q) return null;
-+  url.searchParams.delete("q");
-+  url.searchParams.delete("from");
-+  return { q, cleanUrl: url.pathname + url.search + url.hash };
++  const lstrace = url.searchParams.get("lstrace") || "";
++  const lsbaggage = url.searchParams.get("lsbaggage") || "";
++  for (const name of ["q", "from", "lstrace", "lsbaggage"]) url.searchParams.delete(name);
++  const out = { q, cleanUrl: url.pathname + url.search + url.hash };
++  if (lstrace) out.trace = { "langsmith-trace": lstrace, baggage: lsbaggage };
++  return out;
 +}
 +function fitRequest(q, maxLength) {
 +  if (!maxLength || q.length <= maxLength) return { text: q, cut: false };

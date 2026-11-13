@@ -66,6 +66,20 @@ npx vercel@65.12.1 deploy --prod --yes
 | `AZURE_FOUNDRY_RESOURCE`, `AZURE_FOUNDRY_API_KEY` | Required for `azure-foundry` (Claude on Microsoft Foundry). |
 | `CONCIERGE_PASSCODE` | Optional. When set, `/api/route` requires it. Users enter it under Settings. |
 | `VITE_AGENT_URL_ONBOARDING`, `…_TRACKER`, `…_KNOWLEDGE`, `…_OWNERSHIP`, `…_ACCESS` | Optional agent addresses, applied at build time. A user's own Settings override them. |
+| `LANGSMITH_TRACING`, `LANGSMITH_API_KEY` | Optional. Set both (`true` and a key) to send one LangSmith trace per request. |
+| `LANGSMITH_PROJECT`, `LANGSMITH_ENDPOINT` | Optional. Project (default `uc-concierge-suite`) and API URL (for example the EU endpoint). |
+
+## LangSmith tracing (one trace per request, across the agents)
+
+With `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY`, each `/api/route` call is a root run named `UC Concierge` (inputs: the request; outputs: the decision; metadata: `routed_to`, `fallback`). The Orchestrator's model call is a child LLM run with its prompt, answer and token counts. A keyword fallback still produces the root run.
+
+The response carries the trace's distributed-tracing headers as `trace`. The hand-off adds them to the agent link as `lstrace` and `lsbaggage` (see `agent-patches/prefill/concierge-prefill.js`). An agent that supports this sends them with the handed-over request, and its runs nest under this trace, in this project:
+
+- Onboarding Agent (`feat/langsmith-tracing`): `Onboarding Agent: find` with its `ChatAnthropic` run, plus every later find, prepare and ask in that chat.
+- Tracker Agent v7 (`feat/concierge-trace`): `Tracker Agent: assistant`, with the LangGraph run inside it.
+- Knowledge Agent: the patch strips the parameters but does not trace yet.
+
+Each agent needs its own `LANGSMITH_TRACING` and `LANGSMITH_API_KEY` in its `.env`, in the same LangSmith workspace. The server flushes the trace before replying (capped at 2.5 s), because a Vercel function freezes once it responds. Tracing failures are logged and never block routing.
 
 ## Moving to Azure
 

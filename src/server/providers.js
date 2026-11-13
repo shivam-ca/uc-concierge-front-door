@@ -3,6 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { AnthropicFoundry } from '@anthropic-ai/foundry-sdk';
 import { AzureOpenAI } from 'openai';
 import { SYSTEM_PROMPT, DecisionSchema, DECISION_JSON_SCHEMA } from './prompt.js';
+import { NOOP_TRACE } from './tracing.js';
 
 const DEFAULT_FACTORIES = {
   anthropic: (opts) => new Anthropic(opts),
@@ -12,29 +13,44 @@ const DEFAULT_FACTORIES = {
 
 const need = (...vals) => { if (vals.some(v => !v)) throw new Error('provider-not-configured'); };
 
+// Each call is one LangSmith LLM run (prompt, answer, tokens) under the request's trace; a no-op when tracing is off.
+async function traced(trace, call, { name, provider, model, query }, read) {
+  const run = trace.llm({
+    name, provider, model,
+    inputs: { messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: query }] },
+  });
+  let res;
+  try { res = await call(); } catch (err) { run.fail(err); throw err; }
+  const { content, usage, stop } = read(res);
+  run.end({ choices: [{ message: { role: 'assistant', content: content ?? '' }, finish_reason: stop ?? null }] }, usage);
+  return res;
+}
+
 // Claude (first-party or on Foundry): structured output at low effort; routing is a classification, not a reasoning task.
 // No SDK retries: the caller has an 8s budget and a keyword fallback.
-function claudeClassifier(client, model) {
-  return async (query, { signal } = {}) => {
-    const res = await client.messages.parse({
+function claudeClassifier(client, model, provider) {
+  return async (query, { signal, trace = NOOP_TRACE } = {}) => {
+    const res = await traced(trace, () => client.messages.parse({
       model,
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: query }],
       output_config: { effort: 'low', format: zodOutputFormat(DecisionSchema) },
-    }, { signal, maxRetries: 0 });
+    }, { signal, maxRetries: 0 }), { name: 'ChatAnthropic', provider, model, query },
+    (r) => ({ content: r?.parsed_output ? JSON.stringify(r.parsed_output) : (r?.content || []).map(b => b.text || '').join(''), usage: r?.usage, stop: r?.stop_reason }));
     if (res.stop_reason === 'refusal' || !res.parsed_output) throw new Error('no-decision');
     return res.parsed_output;
   };
 }
 
 function azureOpenAIClassifier(client, deployment) {
-  return async (query, { signal } = {}) => {
-    const res = await client.chat.completions.create({
+  return async (query, { signal, trace = NOOP_TRACE } = {}) => {
+    const res = await traced(trace, () => client.chat.completions.create({
       model: deployment,
       messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: query }],
       response_format: { type: 'json_schema', json_schema: { name: 'route_decision', strict: true, schema: DECISION_JSON_SCHEMA } },
-    }, { signal, maxRetries: 0 });
+    }, { signal, maxRetries: 0 }), { name: 'AzureChatOpenAI', provider: 'azure', model: deployment, query },
+    (r) => ({ content: r?.choices?.[0]?.message?.content, usage: r?.usage, stop: r?.choices?.[0]?.finish_reason }));
     const content = res.choices?.[0]?.message?.content;
     if (!content) throw new Error('no-decision');
     try { return JSON.parse(content); } catch { throw new Error('no-decision'); }
@@ -48,12 +64,12 @@ export function selectProvider(env, factories = {}) {
   if (name === 'anthropic') {
     need(env.ANTHROPIC_API_KEY);
     const model = env.ROUTER_MODEL || 'claude-haiku-5-5';
-    return { name, model, classify: claudeClassifier(f.anthropic({ apiKey: env.ANTHROPIC_API_KEY }), model) };
+    return { name, model, classify: claudeClassifier(f.anthropic({ apiKey: env.ANTHROPIC_API_KEY }), model, 'anthropic') };
   }
   if (name === 'azure-foundry') {
     need(env.AZURE_FOUNDRY_RESOURCE, env.AZURE_FOUNDRY_API_KEY);
     const model = env.ROUTER_MODEL || 'claude-haiku-5-5';
-    return { name, model, classify: claudeClassifier(f.foundry({ apiKey: env.AZURE_FOUNDRY_API_KEY, resource: env.AZURE_FOUNDRY_RESOURCE }), model) };
+    return { name, model, classify: claudeClassifier(f.foundry({ apiKey: env.AZURE_FOUNDRY_API_KEY, resource: env.AZURE_FOUNDRY_RESOURCE }), model, 'anthropic') };
   }
   if (name === 'azure-openai') {
     need(env.AZURE_OPENAI_ENDPOINT, env.AZURE_OPENAI_API_KEY, env.AZURE_OPENAI_DEPLOYMENT);

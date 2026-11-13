@@ -11,7 +11,7 @@ describe('handleRoute', () => {
     const d = deps();
     const out = await handleRoute(req({ body: { query: '  new catalog  ' } }), {}, d);
     expect(out).toEqual({ status: 200, json: ok });
-    expect(d.orchestrateFn).toHaveBeenCalledWith('new catalog', {});
+    expect(d.orchestrateFn).toHaveBeenCalledWith('new catalog', {}, { trace: expect.objectContaining({ enabled: false }) });
   });
   it('rejects non-POST with 405', async () => {
     expect((await handleRoute(req({ method: 'GET' }), {}, deps())).status).toBe(405);
